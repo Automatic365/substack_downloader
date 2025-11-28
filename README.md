@@ -1,11 +1,11 @@
 # Substack Downloader
 
-A tool to download Substack newsletters and compile them into a PDF book. This project provides both a Command Line Interface (CLI) and a Streamlit Web Interface.
+A tool to download Substack newsletters and compile them into a book. This project provides both a Command Line Interface (CLI) and a Streamlit Web Interface.
 
 ## Features
 
 - **Full Archive Support**: Fetches posts from the Substack archive API.
-- **PDF Compilation**: Compiles downloaded posts into a single, clean PDF.
+- **Multiple Output Formats**: Compile to PDF, EPUB, JSON, HTML, TXT, or Markdown.
 - **Web Interface**: Easy-to-use web UI powered by Streamlit.
 - **CLI**: efficient command-line tool for automation.
 - **Customizable**: Limit the number of posts to download.
@@ -33,7 +33,7 @@ Run the Streamlit app:
 streamlit run app.py
 ```
 
-Then open your browser to the URL provided (usually `http://localhost:8501`). Enter the Substack URL and click "Download & Compile".
+Then open your browser to the URL provided (usually `http://localhost:8501`). Enter the Substack URL, select your desired output format, and click "Download & Compile".
 
 ### Command Line Interface (CLI)
 
@@ -43,21 +43,28 @@ Run the script directly from the terminal:
 python main.py <SUBSTACK_URL> [OPTIONS]
 ```
 
+**Options:**
+
+- `url`: The URL of the Substack (e.g., `https://newsletter.pragmaticengineer.com`)
+- `--output`: Output filename (default: `<Newsletter_Title>.<format>`)
+- `--limit`: Limit the number of posts to download
+- `--format`: Output format (choices: `pdf`, `epub`, `json`, `html`, `txt`, `md`; default: `pdf`)
+
 **Examples:**
 
-Download all posts:
+Download all posts as PDF:
 ```bash
 python main.py https://newsletter.pragmaticengineer.com
 ```
 
-Download the last 10 posts:
+Download the last 10 posts as EPUB:
 ```bash
-python main.py https://newsletter.pragmaticengineer.com --limit 10
+python main.py https://newsletter.pragmaticengineer.com --limit 10 --format epub
 ```
 
-Specify output filename:
+Download as Markdown:
 ```bash
-python main.py https://newsletter.pragmaticengineer.com --output my_book.pdf
+python main.py https://newsletter.pragmaticengineer.com --format md
 ```
 
 ## Dependencies
@@ -67,3 +74,5 @@ python main.py https://newsletter.pragmaticengineer.com --output my_book.pdf
 - `lxml`
 - `fpdf2`
 - `streamlit`
+- `markdownify`
+- `EbookLib`

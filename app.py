@@ -8,13 +8,19 @@ from compiler import SubstackCompiler
 st.set_page_config(page_title="Substack Downloader", page_icon="📚")
 
 st.title("📚 Substack Downloader")
-st.markdown("Download posts from your favorite Substack newsletter and compile them into a PDF book.")
+st.markdown("Download posts from your favorite Substack newsletter and compile them into a book.")
 
 col1, col2 = st.columns([3, 1])
 with col1:
     url = st.text_input("Enter Substack URL", placeholder="https://newsletter.pragmaticengineer.com")
 with col2:
     limit = st.number_input("Limit (0 for all)", min_value=0, value=0, step=10)
+
+format_option = st.selectbox(
+    "Output Format",
+    ("PDF", "EPUB", "JSON", "HTML", "TXT", "Markdown"),
+    index=0
+)
 
 if st.button("Download & Compile"):
     if not url:
@@ -63,26 +69,53 @@ if st.button("Download & Compile"):
                         time.sleep(0.1) # Slight delay to be nice
                     
                     # 3. Compile
-                    st.write("Compiling PDF...")
+                    st.write(f"Compiling {format_option}...")
                     compiler = SubstackCompiler()
                     
                     # Generate filename from title
                     safe_title = "".join(c for c in newsletter_title if c.isalnum() or c in (' ', '_', '-')).strip()
                     safe_title = safe_title.replace(" ", "_")
-                    filename = f"{safe_title}.pdf"
                     
-                    pdf_path = compiler.compile_to_pdf(cleaned_posts, filename=filename)
+                    format_map = {
+                        "PDF": "pdf",
+                        "EPUB": "epub",
+                        "JSON": "json",
+                        "HTML": "html",
+                        "TXT": "txt",
+                        "Markdown": "md"
+                    }
+                    file_ext = format_map[format_option]
+                    filename = f"{safe_title}.{file_ext}"
+                    
+                    if format_option == "PDF":
+                        output_path = compiler.compile_to_pdf(cleaned_posts, filename=filename)
+                        mime_type = "application/pdf"
+                    elif format_option == "EPUB":
+                        output_path = compiler.compile_to_epub(cleaned_posts, filename=filename)
+                        mime_type = "application/epub+zip"
+                    elif format_option == "JSON":
+                        output_path = compiler.compile_to_json(cleaned_posts, filename=filename)
+                        mime_type = "application/json"
+                    elif format_option == "HTML":
+                        output_path = compiler.compile_to_html(cleaned_posts, filename=filename)
+                        mime_type = "text/html"
+                    elif format_option == "TXT":
+                        output_path = compiler.compile_to_txt(cleaned_posts, filename=filename)
+                        mime_type = "text/plain"
+                    elif format_option == "Markdown":
+                        output_path = compiler.compile_to_md(cleaned_posts, filename=filename)
+                        mime_type = "text/markdown"
                     
                     status.update(label="Done!", state="complete", expanded=False)
                     st.success(f"Successfully compiled {filename}!")
                     
                     # 4. Download Button
-                    with open(pdf_path, "rb") as f:
+                    with open(output_path, "rb") as f:
                         st.download_button(
-                            label="Download PDF",
+                            label=f"Download {format_option}",
                             data=f,
                             file_name=filename,
-                            mime="application/pdf"
+                            mime=mime_type
                         )
                         
             except Exception as e:

@@ -3,3 +3,5 @@ beautifulsoup4
 lxml
 fpdf2
 streamlit
+markdownify
+EbookLib

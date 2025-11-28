@@ -1,6 +1,9 @@
 import os
+import json
+import markdownify
 from datetime import datetime
 from fpdf import FPDF, HTMLMixin
+from ebooklib import epub
 
 class PDF(FPDF, HTMLMixin):
     pass
@@ -31,11 +34,9 @@ class SubstackCompiler:
     def compile_to_pdf(self, posts, filename="substack_book.pdf"):
         """
         Compiles a list of posts into a single PDF file with a Table of Contents.
-        Using FPDF2 for pure Python PDF generation.
         """
-        # Ensure filename ends with .pdf
         if not filename.endswith('.pdf'):
-            filename = filename.replace('.html', '') + '.pdf'
+            filename += '.pdf'
 
         filepath = os.path.join(self.output_dir, filename)
         
@@ -64,7 +65,7 @@ class SubstackCompiler:
         for post in posts:
             title = self.sanitize_text(post['title'])
             date_str = post['pub_date'].strftime("%B %d, %Y")
-            content = post['content'] # Content is HTML, handled by write_html
+            content = post['content']
             
             # Post Header
             pdf.set_font("Helvetica", size=18, style="B")
@@ -86,6 +87,150 @@ class SubstackCompiler:
 
         print(f"Generating PDF: {filepath}...")
         pdf.output(filepath)
+        return filepath
+
+    def compile_to_epub(self, posts, filename="substack_book.epub"):
+        if not filename.endswith('.epub'):
+            filename += '.epub'
+        filepath = os.path.join(self.output_dir, filename)
+
+        book = epub.EpubBook()
+        book.set_identifier('id123456')
+        book.set_title('Substack Archive')
+        book.set_language('en')
+
+        # Create chapters
+        chapters = []
+        for i, post in enumerate(posts):
+            title = post['title']
+            date_str = post['pub_date'].strftime("%B %d, %Y")
+            content = f"<h1>{title}</h1><p><i>{date_str}</i></p>{post['content']}"
+
+            chapter = epub.EpubHtml(title=title, file_name=f'chap_{i+1}.xhtml', lang='en')
+            chapter.content = content
+            book.add_item(chapter)
+            chapters.append(chapter)
+
+        # Define Table of Contents
+        book.toc = (epub.Link('intro.xhtml', 'Introduction', 'intro'),
+                    (epub.Section('Posts'), chapters))
+
+        # Add default NCX and Nav file
+        book.add_item(epub.EpubNcx())
+        book.add_item(epub.EpubNav())
+
+        # Define CSS style
+        style = 'body { font-family: Times, serif; }'
+        nav_css = epub.EpubItem(uid="style_nav", file_name="style/nav.css", media_type="text/css", content=style)
+        book.add_item(nav_css)
+
+        # Basic spine
+        book.spine = ['nav'] + chapters
+
+        epub.write_epub(filepath, book, {})
+        print(f"Generating EPUB: {filepath}...")
+        return filepath
+
+    def compile_to_json(self, posts, filename="substack_book.json"):
+        if not filename.endswith('.json'):
+            filename += '.json'
+        filepath = os.path.join(self.output_dir, filename)
+
+        # Convert datetime objects to string
+        serializable_posts = []
+        for post in posts:
+            p = post.copy()
+            p['pub_date'] = p['pub_date'].isoformat()
+            serializable_posts.append(p)
+
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(serializable_posts, f, indent=4, ensure_ascii=False)
+        
+        print(f"Generating JSON: {filepath}...")
+        return filepath
+
+    def compile_to_html(self, posts, filename="substack_book.html"):
+        if not filename.endswith('.html'):
+            filename += '.html'
+        filepath = os.path.join(self.output_dir, filename)
+
+        html_content = """
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <title>Substack Archive</title>
+            <style>
+                body { font-family: sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+                article { margin-bottom: 50px; border-bottom: 1px solid #ccc; padding-bottom: 20px; }
+                h1 { color: #333; }
+                .meta { color: #666; font-style: italic; }
+            </style>
+        </head>
+        <body>
+            <h1>Substack Archive</h1>
+        """
+
+        for post in posts:
+            title = post['title']
+            date_str = post['pub_date'].strftime("%B %d, %Y")
+            content = post['content']
             
-        print(f"Successfully compiled {len(posts)} posts to {filepath}")
+            html_content += f"""
+            <article>
+                <h2>{title}</h2>
+                <p class="meta">{date_str}</p>
+                <div>{content}</div>
+            </article>
+            """
+
+        html_content += "</body></html>"
+
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write(html_content)
+        
+        print(f"Generating HTML: {filepath}...")
+        return filepath
+
+    def compile_to_txt(self, posts, filename="substack_book.txt"):
+        if not filename.endswith('.txt'):
+            filename += '.txt'
+        filepath = os.path.join(self.output_dir, filename)
+
+        with open(filepath, 'w', encoding='utf-8') as f:
+            for post in posts:
+                title = post['title']
+                date_str = post['pub_date'].strftime("%B %d, %Y")
+                # Simple HTML to text conversion (stripping tags)
+                # For better results, we could use markdownify here too, but simple strip is often expected for TXT
+                # Let's use markdownify but strip links/images for cleaner text
+                text_content = markdownify.markdownify(post['content'], strip=['a', 'img'])
+                
+                f.write(f"{title}\n")
+                f.write(f"{date_str}\n")
+                f.write("="*len(title) + "\n\n")
+                f.write(text_content)
+                f.write("\n\n" + "-"*50 + "\n\n")
+
+        print(f"Generating TXT: {filepath}...")
+        return filepath
+
+    def compile_to_md(self, posts, filename="substack_book.md"):
+        if not filename.endswith('.md'):
+            filename += '.md'
+        filepath = os.path.join(self.output_dir, filename)
+
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write("# Substack Archive\n\n")
+            for post in posts:
+                title = post['title']
+                date_str = post['pub_date'].strftime("%B %d, %Y")
+                md_content = markdownify.markdownify(post['content'])
+                
+                f.write(f"## {title}\n")
+                f.write(f"*{date_str}*\n\n")
+                f.write(md_content)
+                f.write("\n\n---\n\n")
+
+        print(f"Generating Markdown: {filepath}...")
         return filepath

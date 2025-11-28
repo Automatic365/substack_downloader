@@ -7,8 +7,9 @@ from compiler import SubstackCompiler
 def main():
     parser = argparse.ArgumentParser(description="Download and compile Substack posts.")
     parser.add_argument("url", help="The URL of the Substack (e.g., https://example.substack.com)")
-    parser.add_argument("--output", default=None, help="Output filename (default: <Newsletter_Title>.pdf)")
+    parser.add_argument("--output", default=None, help="Output filename (default: <Newsletter_Title>.<format>)")
     parser.add_argument("--limit", type=int, default=None, help="Limit the number of posts to download")
+    parser.add_argument("--format", choices=['pdf', 'epub', 'json', 'html', 'txt', 'md'], default='pdf', help="Output format (default: pdf)")
     
     args = parser.parse_args()
     
@@ -29,7 +30,7 @@ def main():
     else:
         safe_title = "".join(c for c in newsletter_title if c.isalnum() or c in (' ', '_', '-')).strip()
         safe_title = safe_title.replace(" ", "_")
-        output_filename = f"{safe_title}.pdf"
+        output_filename = f"{safe_title}.{args.format}"
 
     # 2. Fetch Content & Parse
     parser_tool = SubstackParser()
@@ -50,7 +51,19 @@ def main():
 
     # 3. Compile
     compiler = SubstackCompiler()
-    compiler.compile_to_pdf(cleaned_posts, filename=output_filename)
+    
+    if args.format == 'pdf':
+        compiler.compile_to_pdf(cleaned_posts, filename=output_filename)
+    elif args.format == 'epub':
+        compiler.compile_to_epub(cleaned_posts, filename=output_filename)
+    elif args.format == 'json':
+        compiler.compile_to_json(cleaned_posts, filename=output_filename)
+    elif args.format == 'html':
+        compiler.compile_to_html(cleaned_posts, filename=output_filename)
+    elif args.format == 'txt':
+        compiler.compile_to_txt(cleaned_posts, filename=output_filename)
+    elif args.format == 'md':
+        compiler.compile_to_md(cleaned_posts, filename=output_filename)
     
     print(f"Done! Saved to {output_filename}")
 
