@@ -102,7 +102,17 @@ class SubstackCompiler:
                     epub_img = epub.EpubImage()
                     epub_img.uid = filename
                     epub_img.file_name = f"images/{filename}"
-                    epub_img.media_type = f"image/{filename.split('.')[-1]}"
+                    
+                    # Fix MIME types
+                    ext = filename.split('.')[-1]
+                    if ext == 'jpg':
+                        media_type = 'image/jpeg'
+                    elif ext == 'svg':
+                        media_type = 'image/svg+xml'
+                    else:
+                        media_type = f"image/{ext}"
+                        
+                    epub_img.media_type = media_type
                     epub_img.content = img_content
                     epub_book.add_item(epub_img)
                     
