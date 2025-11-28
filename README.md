@@ -30,7 +30,7 @@ A tool to download Substack newsletters and compile them into a book. This proje
 Run the Streamlit app:
 
 ```bash
-streamlit run app.py
+python3 -m streamlit run app.py
 ```
 
 Then open your browser to the URL provided (usually `http://localhost:8501`). Enter the Substack URL, select your desired output format, and click "Download & Compile".
