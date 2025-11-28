@@ -42,22 +42,32 @@ class SubstackCompiler:
         Downloads an image and returns the local path.
         """
         try:
-            # Handle Substack CDN URLs that might be complex
-            # We'll generate a unique name for each image
-            ext = 'jpg'
-            if '.png' in img_url: ext = 'png'
-            elif '.gif' in img_url: ext = 'gif'
-            elif '.svg' in img_url: ext = 'svg'
-            
-            filename = f"{uuid.uuid4()}.{ext}"
-            filepath = os.path.join(self.images_dir, filename)
-            
             headers = {
                 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36'
             }
             
             response = requests.get(img_url, headers=headers, stream=True)
             response.raise_for_status()
+            
+            # Determine extension from Content-Type
+            content_type = response.headers.get('Content-Type', '').lower()
+            if 'image/png' in content_type:
+                ext = 'png'
+            elif 'image/gif' in content_type:
+                ext = 'gif'
+            elif 'image/svg' in content_type:
+                ext = 'svg'
+            elif 'image/jpeg' in content_type or 'image/jpg' in content_type:
+                ext = 'jpg'
+            else:
+                # Fallback to URL or default
+                if '.png' in img_url: ext = 'png'
+                elif '.gif' in img_url: ext = 'gif'
+                elif '.svg' in img_url: ext = 'svg'
+                else: ext = 'jpg'
+            
+            filename = f"{uuid.uuid4()}.{ext}"
+            filepath = os.path.join(self.images_dir, filename)
             
             with open(filepath, 'wb') as f:
                 for chunk in response.iter_content(chunk_size=8192):
