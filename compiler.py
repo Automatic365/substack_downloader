@@ -122,14 +122,17 @@ class SubstackCompiler:
                     # Update src to absolute local path for PDF
                     img['src'] = local_path
                     
-                # Remove srcset and other attributes that might confuse renderers
-                if img.has_attr('srcset'): del img['srcset']
-                if img.has_attr('loading'): del img['loading']
+                # Clean up attributes: keep only src and alt
+                # Substack includes many data attributes and classes that might confuse EPUB readers
+                alt = img.get('alt', '')
+                img.attrs = {
+                    'src': img['src'],
+                    'alt': alt
+                }
                 
-                # Ensure width/height don't break layout (optional, but good for PDF)
-                # img['width'] = "100%" # FPDF2 doesn't like percentage width in HTML attributes sometimes
-                if img.has_attr('width'): del img['width']
-                if img.has_attr('height'): del img['height']
+                # Optional: Add simple styling to ensure it fits
+                # img['style'] = "max-width: 100%; height: auto;" 
+                # (Better to handle via CSS file)
                 
         return str(soup)
 
