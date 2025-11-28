@@ -22,6 +22,9 @@ format_option = st.selectbox(
     index=0
 )
 
+with st.expander("Advanced Options"):
+    cookie = st.text_input("Substack Cookie (substack.sid)", placeholder="Paste your substack.sid cookie here for paywalled content", type="password")
+
 if st.button("Download & Compile"):
     if not url:
         st.error("Please enter a valid URL.")
@@ -30,7 +33,7 @@ if st.button("Download & Compile"):
             try:
                 # 1. Fetch Metadata
                 st.write("Fetching post list from Archive API...")
-                fetcher = SubstackFetcher(url)
+                fetcher = SubstackFetcher(url, cookie=cookie)
                 newsletter_title = fetcher.get_newsletter_title()
                 
                 fetch_limit = None if limit == 0 else limit

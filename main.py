@@ -10,11 +10,12 @@ def main():
     parser.add_argument("--output", default=None, help="Output filename (default: <Newsletter_Title>.<format>)")
     parser.add_argument("--limit", type=int, default=None, help="Limit the number of posts to download")
     parser.add_argument("--format", choices=['pdf', 'epub', 'json', 'html', 'txt', 'md'], default='pdf', help="Output format (default: pdf)")
+    parser.add_argument("--cookie", default=None, help="Substack session cookie (substack.sid) for authentication")
     
     args = parser.parse_args()
     
     # 1. Fetch Metadata
-    fetcher = SubstackFetcher(args.url)
+    fetcher = SubstackFetcher(args.url, cookie=args.cookie)
     newsletter_title = fetcher.get_newsletter_title()
     print(f"Fetching archive for: {newsletter_title}")
     

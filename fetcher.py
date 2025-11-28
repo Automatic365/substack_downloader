@@ -4,12 +4,14 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 
 class SubstackFetcher:
-    def __init__(self, url):
+    def __init__(self, url, cookie=None):
         self.url = url.rstrip('/')
         self.api_url = f"{self.url}/api/v1/archive"
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36'
         }
+        if cookie:
+            self.headers['Cookie'] = cookie
 
     def get_newsletter_title(self):
         """
