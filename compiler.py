@@ -1,7 +1,10 @@
 import os
 import json
 import markdownify
+import requests
+import uuid
 from datetime import datetime
+from bs4 import BeautifulSoup
 from fpdf import FPDF, HTMLMixin
 from ebooklib import epub
 
@@ -11,8 +14,11 @@ class PDF(FPDF, HTMLMixin):
 class SubstackCompiler:
     def __init__(self, output_dir="output"):
         self.output_dir = output_dir
+        self.images_dir = os.path.join(self.output_dir, "images")
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
+        if not os.path.exists(self.images_dir):
+            os.makedirs(self.images_dir)
 
     def sanitize_text(self, text):
         """
@@ -30,6 +36,82 @@ class SubstackCompiler:
         
         # Encode to latin-1 and decode back to ignore other errors
         return text.encode('latin-1', 'replace').decode('latin-1')
+
+    def download_image(self, img_url):
+        """
+        Downloads an image and returns the local path.
+        """
+        try:
+            # Handle Substack CDN URLs that might be complex
+            # We'll generate a unique name for each image
+            ext = 'jpg'
+            if '.png' in img_url: ext = 'png'
+            elif '.gif' in img_url: ext = 'gif'
+            elif '.svg' in img_url: ext = 'svg'
+            
+            filename = f"{uuid.uuid4()}.{ext}"
+            filepath = os.path.join(self.images_dir, filename)
+            
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36'
+            }
+            
+            response = requests.get(img_url, headers=headers, stream=True)
+            response.raise_for_status()
+            
+            with open(filepath, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+            
+            return filepath, filename
+        except Exception as e:
+            print(f"Failed to download image {img_url}: {e}")
+            return None, None
+
+    def process_html_images(self, html_content, for_epub=False, epub_book=None):
+        """
+        Parses HTML, downloads images, and updates src attributes.
+        For PDF: Updates src to absolute local path.
+        For EPUB: Updates src to relative filename and adds image to book.
+        """
+        soup = BeautifulSoup(html_content, 'html.parser')
+        images = soup.find_all('img')
+        
+        for img in images:
+            src = img.get('src')
+            if not src:
+                continue
+                
+            local_path, filename = self.download_image(src)
+            if local_path:
+                if for_epub and epub_book:
+                    # Add image to EPUB
+                    with open(local_path, 'rb') as f:
+                        img_content = f.read()
+                    
+                    epub_img = epub.EpubImage()
+                    epub_img.uid = filename
+                    epub_img.file_name = f"images/{filename}"
+                    epub_img.media_type = f"image/{filename.split('.')[-1]}"
+                    epub_img.content = img_content
+                    epub_book.add_item(epub_img)
+                    
+                    # Update src to relative path in EPUB
+                    img['src'] = f"images/{filename}"
+                else:
+                    # Update src to absolute local path for PDF
+                    img['src'] = local_path
+                    
+                # Remove srcset and other attributes that might confuse renderers
+                if img.has_attr('srcset'): del img['srcset']
+                if img.has_attr('loading'): del img['loading']
+                
+                # Ensure width/height don't break layout (optional, but good for PDF)
+                # img['width'] = "100%" # FPDF2 doesn't like percentage width in HTML attributes sometimes
+                if img.has_attr('width'): del img['width']
+                if img.has_attr('height'): del img['height']
+                
+        return str(soup)
 
     def compile_to_pdf(self, posts, filename="substack_book.pdf"):
         """
@@ -66,6 +148,9 @@ class SubstackCompiler:
             title = self.sanitize_text(post['title'])
             date_str = post['pub_date'].strftime("%B %d, %Y")
             content = post['content']
+            
+            # Process images for PDF
+            content = self.process_html_images(content, for_epub=False)
             
             # Post Header
             pdf.set_font("Helvetica", size=18, style="B")
@@ -104,10 +189,15 @@ class SubstackCompiler:
         for i, post in enumerate(posts):
             title = post['title']
             date_str = post['pub_date'].strftime("%B %d, %Y")
-            content = f"<h1>{title}</h1><p><i>{date_str}</i></p>{post['content']}"
+            
+            # Process images for EPUB
+            content = post['content']
+            content = self.process_html_images(content, for_epub=True, epub_book=book)
+            
+            full_content = f"<h1>{title}</h1><p><i>{date_str}</i></p>{content}"
 
             chapter = epub.EpubHtml(title=title, file_name=f'chap_{i+1}.xhtml', lang='en')
-            chapter.content = content
+            chapter.content = full_content
             book.add_item(chapter)
             chapters.append(chapter)
 
@@ -120,7 +210,7 @@ class SubstackCompiler:
         book.add_item(epub.EpubNav())
 
         # Define CSS style
-        style = 'body { font-family: Times, serif; }'
+        style = 'body { font-family: Times, serif; } img { max-width: 100%; }'
         nav_css = epub.EpubItem(uid="style_nav", file_name="style/nav.css", media_type="text/css", content=style)
         book.add_item(nav_css)
 
@@ -165,6 +255,7 @@ class SubstackCompiler:
                 article { margin-bottom: 50px; border-bottom: 1px solid #ccc; padding-bottom: 20px; }
                 h1 { color: #333; }
                 .meta { color: #666; font-style: italic; }
+                img { max-width: 100%; height: auto; }
             </style>
         </head>
         <body>
@@ -175,6 +266,13 @@ class SubstackCompiler:
             title = post['title']
             date_str = post['pub_date'].strftime("%B %d, %Y")
             content = post['content']
+            
+            # For HTML output, we could also download images, but linking to remote is usually fine for HTML.
+            # However, if we want a self-contained offline HTML, we should download.
+            # Let's stick to remote for HTML to keep it simple, or use the same logic if requested.
+            # The prompt asked for "downloads aren't pulling down pictures", implying offline access.
+            # Let's use the process_html_images for HTML too, but maybe just use relative paths?
+            # Actually, let's keep HTML simple for now as the user complained about "downloads" which usually implies PDF/EPUB.
             
             html_content += f"""
             <article>
@@ -201,9 +299,6 @@ class SubstackCompiler:
             for post in posts:
                 title = post['title']
                 date_str = post['pub_date'].strftime("%B %d, %Y")
-                # Simple HTML to text conversion (stripping tags)
-                # For better results, we could use markdownify here too, but simple strip is often expected for TXT
-                # Let's use markdownify but strip links/images for cleaner text
                 text_content = markdownify.markdownify(post['content'], strip=['a', 'img'])
                 
                 f.write(f"{title}\n")
