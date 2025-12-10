@@ -415,3 +415,34 @@ class SubstackFetcherEnhanced:
             logger.info(f"Cleared {len(cache_files)} cached files")
         else:
             logger.info("Cache directory does not exist")
+
+    def verify_auth(self) -> bool:
+        """
+        Verifies if the current session is authenticated by checking the subscriptions endpoint.
+
+        Returns:
+            bool: True if authenticated, False otherwise
+        """
+        if 'Cookie' not in self.headers:
+            return False
+
+        # Use the subscriptions endpoint as it requires authentication
+        auth_url = "https://substack.com/api/v1/subscriptions"
+        
+        try:
+            response = self.session.get(
+                auth_url,
+                headers=self.headers,
+                timeout=REQUEST_TIMEOUT
+            )
+            # If we get a 200 OK, the session is valid
+            if response.status_code == 200:
+                logger.info("Authentication verification successful")
+                return True
+            
+            # 401 Unauthorized means invalid cookie
+            logger.warning(f"Authentication verification failed with status {response.status_code}")
+            return False
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error verifying authentication: {e}")
+            return False

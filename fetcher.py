@@ -199,3 +199,26 @@ class SubstackFetcher:
             print(f"Unexpected error fetching content from {url}: {type(e).__name__}: {e}")
             return ""
 
+
+    def verify_auth(self):
+        """
+        Verifies if the current session is authenticated by checking the subscriptions endpoint.
+        Returns:
+            bool: True if authenticated, False otherwise
+        """
+        if 'Cookie' not in self.headers:
+            return False
+
+        # Use the subscriptions endpoint as it requires authentication
+        auth_url = f"https://substack.com/api/v1/subscriptions"
+        
+        try:
+            response = requests.get(auth_url, headers=self.headers, timeout=10)
+            # If we get a 200 OK, the session is valid
+            if response.status_code == 200:
+                return True
+            # 401 Unauthorized means invalid cookie
+            return False
+        except requests.exceptions.RequestException as e:
+            print(f"Error verifying authentication: {e}")
+            return False
