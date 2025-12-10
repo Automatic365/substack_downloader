@@ -190,7 +190,8 @@ if st.button(button_label):
                         cleaned_posts,
                         filename=filename,
                         title=newsletter_title,
-                        author=newsletter_author
+                        author=newsletter_author,
+                        update_existing=(mode == "Update Existing EPUB")
                     )
                     mime_type = "application/epub+zip"
 

@@ -144,28 +144,42 @@ class SubstackCompiler:
                 downloaded_count += 1
                 if for_epub and epub_book:
                     # Add image to EPUB
-                    with open(local_path, 'rb') as f:
-                        img_content = f.read()
+                    try:
+                        with open(local_path, 'rb') as f:
+                            img_content = f.read()
 
-                    epub_img = epub.EpubImage()
-                    epub_img.uid = filename
-                    epub_img.file_name = f"images/{filename}"
+                        epub_img = epub.EpubImage()
+                        epub_img.uid = filename
+                        epub_img.file_name = f"images/{filename}"
 
-                    # Fix MIME types
-                    ext = filename.split('.')[-1]
-                    if ext == 'jpg':
-                        media_type = 'image/jpeg'
-                    elif ext == 'svg':
-                        media_type = 'image/svg+xml'
-                    else:
-                        media_type = f"image/{ext}"
+                        # Fix MIME types
+                        ext = filename.split('.')[-1].lower()
+                        if ext == 'jpg' or ext == 'jpeg':
+                            media_type = 'image/jpeg'
+                        elif ext == 'svg':
+                            media_type = 'image/svg+xml'
+                        elif ext == 'png':
+                            media_type = 'image/png'
+                        elif ext == 'gif':
+                            media_type = 'image/gif'
+                        elif ext == 'webp':
+                            media_type = 'image/webp'
+                        else:
+                            media_type = f"image/{ext}"
 
-                    epub_img.media_type = media_type
-                    epub_img.content = img_content
-                    epub_book.add_item(epub_img)
+                        epub_img.media_type = media_type
+                        epub_img.content = img_content
+                        epub_book.add_item(epub_img)
 
-                    # Update src to relative path in EPUB
-                    img['src'] = f"images/{filename}"
+                        # Update src to relative path in EPUB
+                        img['src'] = f"images/{filename}"
+
+                        if verbose:
+                            print(f"    ✓ Added to EPUB: {filename}")
+                    except Exception as e:
+                        print(f"    ⚠️  Error adding image to EPUB: {e}")
+                        failed_count += 1
+                        downloaded_count -= 1
                 else:
                     # Update src to absolute local path for PDF
                     img['src'] = local_path
@@ -403,7 +417,7 @@ class SubstackCompiler:
         pdf.output(filepath)
         return filepath
 
-    def compile_to_epub(self, posts, filename="substack_book.epub", title="Substack Archive", author="Unknown Author"):
+    def compile_to_epub(self, posts, filename="substack_book.epub", title="Substack Archive", author="Unknown Author", update_existing=False):
         """
         Compiles posts into an EPUB file with proper metadata.
 
@@ -412,42 +426,60 @@ class SubstackCompiler:
             filename: Output filename
             title: Book title (newsletter name)
             author: Author name
+            update_existing: If True, append to existing EPUB rather than create new one
         """
         if not filename.endswith('.epub'):
             filename += '.epub'
         filepath = os.path.join(self.output_dir, filename)
 
-        book = epub.EpubBook()
-        # Use URL as unique identifier
-        book_id = f"substack-{title.replace(' ', '-').lower()}"
-        book.set_identifier(book_id)
-        book.set_title(title)
-        book.set_language('en')
-        book.add_author(author)
+        # Load existing EPUB if updating, otherwise create new one
+        if update_existing and os.path.exists(filepath):
+            print(f"Loading existing EPUB: {filepath}...")
+            book = epub.read_epub(filepath)
 
-        # Create chapters
-        chapters = []
+            # Get existing chapters
+            existing_chapters = [item for item in book.get_items() if isinstance(item, epub.EpubHtml) and item.file_name.startswith('chap_')]
+            next_chapter_num = len(existing_chapters) + 1
+            print(f"  Found {len(existing_chapters)} existing chapter(s), starting from chapter {next_chapter_num}")
+        else:
+            print(f"Creating new EPUB: {filepath}...")
+            book = epub.EpubBook()
+            # Use URL as unique identifier
+            book_id = f"substack-{title.replace(' ', '-').lower()}"
+            book.set_identifier(book_id)
+            book.set_title(title)
+            book.set_language('en')
+            book.add_author(author)
+
+            existing_chapters = []
+            next_chapter_num = 1
+
+        # Create new chapters
+        new_chapters = []
         for i, post in enumerate(posts):
-            title = post['title']
+            post_title = post['title']
             date_str = post['pub_date'].strftime("%B %d, %Y")
-            
+
             # Process videos and images for EPUB
             content = post['content']
             content = self.process_html_videos(content, base_url=self.base_url)
             content = self.process_html_images(content, for_epub=True, epub_book=book)
 
-            full_content = f"<h1>{title}</h1><p><i>{date_str}</i></p>{content}"
+            full_content = f"<h1>{post_title}</h1><p><i>{date_str}</i></p>{content}"
 
-            chapter = epub.EpubHtml(title=title, file_name=f'chap_{i+1}.xhtml', lang='en')
+            chapter = epub.EpubHtml(title=post_title, file_name=f'chap_{next_chapter_num + i}.xhtml', lang='en')
             chapter.content = full_content
             book.add_item(chapter)
-            chapters.append(chapter)
+            new_chapters.append(chapter)
 
-        # Define Table of Contents
+        # Combine all chapters
+        all_chapters = existing_chapters + new_chapters
+
+        # Update Table of Contents
         book.toc = (epub.Link('intro.xhtml', 'Introduction', 'intro'),
-                    (epub.Section('Posts'), chapters))
+                    (epub.Section('Posts'), all_chapters))
 
-        # Add default NCX and Nav file
+        # Add default NCX and Nav file (will update if already exists)
         book.add_item(epub.EpubNcx())
         book.add_item(epub.EpubNav())
 
@@ -456,11 +488,14 @@ class SubstackCompiler:
         nav_css = epub.EpubItem(uid="style_nav", file_name="style/nav.css", media_type="text/css", content=style)
         book.add_item(nav_css)
 
-        # Basic spine
-        book.spine = ['nav'] + chapters
+        # Update spine
+        book.spine = ['nav'] + all_chapters
 
         epub.write_epub(filepath, book, {})
-        print(f"Generating EPUB: {filepath}...")
+        if update_existing:
+            print(f"Updated EPUB with {len(new_chapters)} new chapter(s): {filepath}")
+        else:
+            print(f"Generated EPUB with {len(all_chapters)} chapter(s): {filepath}")
         return filepath
 
     def compile_to_json(self, posts, filename="substack_book.json"):
