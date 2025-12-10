@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: substack-downloader
+    env: python
+    branch: flamboyant-shockley
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "streamlit run app.py --server.port=$PORT --server.address=0.0.0.0"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.9.6
+      - key: SUBSTACK_LOG_LEVEL
+        value: INFO
+      - key: SUBSTACK_MAX_WORKERS
+        value: 3
+      - key: SUBSTACK_ENABLE_CACHE
+        value: false
+      - key: SUBSTACK_TIMEOUT
+        value: 60
