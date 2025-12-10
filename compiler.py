@@ -187,6 +187,112 @@ class SubstackCompiler:
 
         return str(soup)
 
+    def process_html_videos(self, html_content, verbose=True):
+        """
+        Converts video embeds to clickable links since PDFs/EPUBs can't play videos.
+
+        Handles:
+        - <video> tags
+        - <iframe> embeds (YouTube, Vimeo, etc.)
+        - Substack video embeds
+
+        Args:
+            html_content: HTML string containing videos
+            verbose: Print conversion progress
+
+        Returns:
+            HTML string with videos replaced by clickable links
+        """
+        soup = BeautifulSoup(html_content, 'html.parser')
+        video_count = 0
+
+        # Find all video tags
+        videos = soup.find_all('video')
+        for video in videos:
+            video_count += 1
+
+            # Try to get video source
+            video_url = None
+            source = video.find('source')
+            if source and source.get('src'):
+                video_url = source.get('src')
+            elif video.get('src'):
+                video_url = video.get('src')
+
+            if video_url:
+                # Create clickable link to replace video
+                link_text = f"🎬 Click to watch video"
+                new_tag = soup.new_tag('p', style='background: #f0f0f0; padding: 10px; border-left: 4px solid #FF6B6B;')
+                a_tag = soup.new_tag('a', href=video_url)
+                a_tag.string = link_text
+                new_tag.append(a_tag)
+                new_tag.append(soup.new_string(f" ({video_url[:50]}...)"))
+                video.replace_with(new_tag)
+
+                if verbose:
+                    print(f"  📹 Converted video to link: {video_url[:60]}...")
+            else:
+                # No URL found, just add a note
+                note = soup.new_tag('p', style='background: #fff3cd; padding: 10px;')
+                note.string = "📹 Video content (URL not available)"
+                video.replace_with(note)
+
+        # Find all iframe embeds (YouTube, Vimeo, etc.)
+        iframes = soup.find_all('iframe')
+        for iframe in iframes:
+            src = iframe.get('src')
+            if not src:
+                continue
+
+            # Check if it's a video embed
+            video_platforms = ['youtube.com', 'youtu.be', 'vimeo.com', 'wistia.com', 'loom.com', 'substack.com/embed']
+            is_video = any(platform in src for platform in video_platforms)
+
+            if is_video:
+                video_count += 1
+
+                # Extract clean URL
+                video_url = src
+
+                # For YouTube, convert embed URL to watch URL
+                if 'youtube.com/embed/' in src:
+                    video_id = src.split('youtube.com/embed/')[-1].split('?')[0]
+                    video_url = f"https://www.youtube.com/watch?v={video_id}"
+                elif 'youtu.be/' in src:
+                    video_url = src.replace('youtu.be/', 'youtube.com/watch?v=')
+
+                # Determine platform name
+                if 'youtube' in src or 'youtu.be' in src:
+                    platform = "YouTube"
+                elif 'vimeo' in src:
+                    platform = "Vimeo"
+                elif 'loom' in src:
+                    platform = "Loom"
+                elif 'wistia' in src:
+                    platform = "Wistia"
+                else:
+                    platform = "Video"
+
+                # Create clickable link
+                link_text = f"🎬 Watch on {platform}"
+                new_tag = soup.new_tag('p', style='background: #f0f0f0; padding: 10px; border-left: 4px solid #FF6B6B; margin: 10px 0;')
+                a_tag = soup.new_tag('a', href=video_url, target='_blank')
+                a_tag.string = link_text
+                new_tag.append(a_tag)
+                new_tag.append(soup.new_tag('br'))
+                small = soup.new_tag('small', style='color: #666;')
+                small.string = f"Link: {video_url[:70]}..."
+                new_tag.append(small)
+                iframe.replace_with(new_tag)
+
+                if verbose:
+                    print(f"  📹 Converted {platform} embed to link: {video_url[:60]}...")
+
+        if verbose and video_count > 0:
+            print(f"  ✓ Converted {video_count} video(s) to clickable links")
+
+        return str(soup)
+
     def compile_to_pdf(self, posts, filename="substack_book.pdf"):
         """
         Compiles a list of posts into a single PDF file with a Table of Contents.
@@ -223,9 +329,12 @@ class SubstackCompiler:
             date_str = post['pub_date'].strftime("%B %d, %Y")
             content = post['content']
             
+            # Process videos (convert to clickable links)
+            content = self.process_html_videos(content)
+
             # Process images for PDF
             content = self.process_html_images(content, for_epub=False)
-            
+
             # Post Header
             pdf.set_font("Helvetica", size=18, style="B")
             pdf.multi_cell(0, 10, title)
@@ -264,10 +373,11 @@ class SubstackCompiler:
             title = post['title']
             date_str = post['pub_date'].strftime("%B %d, %Y")
             
-            # Process images for EPUB
+            # Process videos and images for EPUB
             content = post['content']
+            content = self.process_html_videos(content)
             content = self.process_html_images(content, for_epub=True, epub_book=book)
-            
+
             full_content = f"<h1>{title}</h1><p><i>{date_str}</i></p>{content}"
 
             chapter = epub.EpubHtml(title=title, file_name=f'chap_{i+1}.xhtml', lang='en')
