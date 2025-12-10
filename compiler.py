@@ -97,31 +97,59 @@ class SubstackCompiler:
                 os.remove(filepath)
             return None, None
 
-    def process_html_images(self, html_content, for_epub=False, epub_book=None):
+    def process_html_images(self, html_content, for_epub=False, epub_book=None, verbose=True):
         """
         Parses HTML, downloads images, and updates src attributes.
         For PDF: Updates src to absolute local path.
         For EPUB: Updates src to relative filename and adds image to book.
+
+        Args:
+            html_content: HTML string containing images
+            for_epub: Whether processing for EPUB (vs PDF)
+            epub_book: EpubBook object (required if for_epub=True)
+            verbose: Print download progress
+
+        Returns:
+            HTML string with updated image src attributes
         """
         soup = BeautifulSoup(html_content, 'html.parser')
         images = soup.find_all('img')
-        
+
+        if not images:
+            return str(soup)
+
+        downloaded_count = 0
+        failed_count = 0
+
+        if verbose:
+            print(f"  Found {len(images)} image(s) to download...")
+
         for img in images:
             src = img.get('src')
             if not src:
                 continue
-                
+
+            # Skip data URIs (embedded images)
+            if src.startswith('data:'):
+                if verbose:
+                    print(f"  Skipping embedded data URI image")
+                continue
+
+            if verbose:
+                print(f"  Downloading: {src[:80]}...")
+
             local_path, filename = self.download_image(src)
             if local_path:
+                downloaded_count += 1
                 if for_epub and epub_book:
                     # Add image to EPUB
                     with open(local_path, 'rb') as f:
                         img_content = f.read()
-                    
+
                     epub_img = epub.EpubImage()
                     epub_img.uid = filename
                     epub_img.file_name = f"images/{filename}"
-                    
+
                     # Fix MIME types
                     ext = filename.split('.')[-1]
                     if ext == 'jpg':
@@ -130,17 +158,17 @@ class SubstackCompiler:
                         media_type = 'image/svg+xml'
                     else:
                         media_type = f"image/{ext}"
-                        
+
                     epub_img.media_type = media_type
                     epub_img.content = img_content
                     epub_book.add_item(epub_img)
-                    
+
                     # Update src to relative path in EPUB
                     img['src'] = f"images/{filename}"
                 else:
                     # Update src to absolute local path for PDF
                     img['src'] = local_path
-                    
+
                 # Clean up attributes: keep only src and alt
                 # Substack includes many data attributes and classes that might confuse EPUB readers
                 alt = img.get('alt', '')
@@ -148,11 +176,15 @@ class SubstackCompiler:
                     'src': img['src'],
                     'alt': alt
                 }
-                
-                # Optional: Add simple styling to ensure it fits
-                # img['style'] = "max-width: 100%; height: auto;" 
-                # (Better to handle via CSS file)
-                
+            else:
+                # Image download failed
+                failed_count += 1
+                if verbose:
+                    print(f"  ⚠️  Failed to download image, keeping original URL")
+
+        if verbose and (downloaded_count > 0 or failed_count > 0):
+            print(f"  ✓ Downloaded {downloaded_count} image(s), {failed_count} failed")
+
         return str(soup)
 
     def compile_to_pdf(self, posts, filename="substack_book.pdf"):
