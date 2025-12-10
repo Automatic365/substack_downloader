@@ -53,6 +53,18 @@ class SubstackFetcherEnhanced:
         if not parsed.scheme or not parsed.netloc:
             raise ValueError(f"Invalid URL format: {url}")
 
+        # Security: Enforce HTTPS when using authentication
+        if parsed.scheme == 'http':
+            if cookie:
+                raise ValueError(
+                    "Security Error: Cannot use authentication cookie with HTTP URL. "
+                    "Use HTTPS to protect your credentials."
+                )
+            logger.warning(
+                f"⚠️  WARNING: Using HTTP instead of HTTPS for {url}. "
+                "Connection is not encrypted!"
+            )
+
         self.url = url.rstrip('/')
         self.api_url = f"{self.url}/api/v1/archive"
         self.enable_cache = enable_cache
