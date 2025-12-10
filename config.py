@@ -16,7 +16,7 @@ RETRY_STATUS_CODES = [429, 500, 502, 503, 504]
 # Headers
 USER_AGENT = os.getenv(
     'SUBSTACK_USER_AGENT',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36'
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 )
 
 # Content selectors (in priority order)

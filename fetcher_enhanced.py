@@ -78,9 +78,16 @@ class SubstackFetcherEnhanced:
             self.cache_dir = None
 
         # Setup headers
-        self.headers = {'User-Agent': USER_AGENT}
+        self.headers = {
+            'User-Agent': USER_AGENT,
+            'Referer': 'https://substack.com/'
+        }
         if cookie:
-            self.headers['Cookie'] = cookie
+            # Ensure cookie is formatted as a key-value pair if only value is provided
+            if "substack.sid=" not in cookie:
+                self.headers['Cookie'] = f"substack.sid={cookie}"
+            else:
+                self.headers['Cookie'] = cookie
             logger.info("Cookie provided for authenticated requests")
 
         # Create session with retry logic
