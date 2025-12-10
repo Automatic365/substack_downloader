@@ -124,7 +124,7 @@ if st.button("Download & Compile"):
                     
                     # 3. Compile
                     if format_option in ["PDF", "EPUB"]:
-                        st.write(f"Compiling {format_option} (downloading images from posts)...")
+                        st.write(f"Compiling {format_option} (processing videos & images)...")
                     else:
                         st.write(f"Compiling {format_option}...")
                     compiler = SubstackCompiler()
