@@ -245,7 +245,7 @@ class SubstackCompiler:
                 continue
 
             # Check if it's a video embed
-            video_platforms = ['youtube.com', 'youtu.be', 'vimeo.com', 'wistia.com', 'loom.com', 'substack.com/embed']
+            video_platforms = ['youtube.com', 'youtube-nocookie.com', 'youtu.be', 'vimeo.com', 'wistia.com', 'loom.com', 'substack.com/embed']
             is_video = any(platform in src for platform in video_platforms)
 
             if is_video:
@@ -255,8 +255,12 @@ class SubstackCompiler:
                 video_url = src
 
                 # For YouTube, convert embed URL to watch URL
-                if 'youtube.com/embed/' in src:
-                    video_id = src.split('youtube.com/embed/')[-1].split('?')[0]
+                if 'youtube.com/embed/' in src or 'youtube-nocookie.com/embed/' in src:
+                    # Extract video ID from either youtube.com or youtube-nocookie.com
+                    if 'youtube-nocookie.com/embed/' in src:
+                        video_id = src.split('youtube-nocookie.com/embed/')[-1].split('?')[0]
+                    else:
+                        video_id = src.split('youtube.com/embed/')[-1].split('?')[0]
                     video_url = f"https://www.youtube.com/watch?v={video_id}"
                 elif 'youtu.be/' in src:
                     video_url = src.replace('youtu.be/', 'youtube.com/watch?v=')
