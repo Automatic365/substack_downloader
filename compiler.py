@@ -403,15 +403,27 @@ class SubstackCompiler:
         pdf.output(filepath)
         return filepath
 
-    def compile_to_epub(self, posts, filename="substack_book.epub"):
+    def compile_to_epub(self, posts, filename="substack_book.epub", title="Substack Archive", author="Unknown Author"):
+        """
+        Compiles posts into an EPUB file with proper metadata.
+
+        Args:
+            posts: List of post dicts with title, pub_date, content
+            filename: Output filename
+            title: Book title (newsletter name)
+            author: Author name
+        """
         if not filename.endswith('.epub'):
             filename += '.epub'
         filepath = os.path.join(self.output_dir, filename)
 
         book = epub.EpubBook()
-        book.set_identifier('id123456')
-        book.set_title('Substack Archive')
+        # Use URL as unique identifier
+        book_id = f"substack-{title.replace(' ', '-').lower()}"
+        book.set_identifier(book_id)
+        book.set_title(title)
         book.set_language('en')
+        book.add_author(author)
 
         # Create chapters
         chapters = []

@@ -51,6 +51,49 @@ class SubstackFetcher:
             print(f"Error parsing title: {e}")
             return "Substack Archive"
 
+    def get_newsletter_author(self):
+        """
+        Fetches the newsletter author name from the main page.
+        Tries multiple methods to find author information.
+        """
+        try:
+            response = requests.get(self.url, headers=self.headers, timeout=30)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.content, 'html.parser')
+
+            # Method 1: Look for meta tags
+            author_meta = soup.find('meta', attrs={'name': 'author'})
+            if author_meta and author_meta.get('content'):
+                return author_meta['content'].strip()
+
+            # Method 2: Look for publisher meta tag
+            publisher_meta = soup.find('meta', attrs={'property': 'article:publisher'})
+            if publisher_meta and publisher_meta.get('content'):
+                return publisher_meta['content'].strip()
+
+            # Method 3: Look for author link/name in the page
+            author_link = soup.find('a', class_=lambda x: x and 'author' in str(x).lower())
+            if author_link:
+                return author_link.get_text().strip()
+
+            # Method 4: Extract from subdomain (e.g., authorname.substack.com)
+            parsed = urlparse(self.url)
+            subdomain = parsed.netloc.split('.')[0]
+            if subdomain and subdomain != 'www':
+                # Capitalize first letter of each word
+                return ' '.join(word.capitalize() for word in subdomain.split('-'))
+
+            return "Unknown Author"
+        except requests.exceptions.Timeout:
+            print(f"Timeout fetching author from {self.url}")
+            return "Unknown Author"
+        except requests.exceptions.RequestException as e:
+            print(f"Error fetching author: {e}")
+            return "Unknown Author"
+        except Exception as e:
+            print(f"Error parsing author: {e}")
+            return "Unknown Author"
+
     def fetch_archive_metadata(self, limit=None):
         """
         Fetches metadata for all posts using the Archive API.
