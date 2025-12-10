@@ -12,9 +12,10 @@ class PDF(FPDF, HTMLMixin):
     pass
 
 class SubstackCompiler:
-    def __init__(self, output_dir="output"):
+    def __init__(self, output_dir="output", base_url=None):
         self.output_dir = output_dir
         self.images_dir = os.path.join(self.output_dir, "images")
+        self.base_url = base_url  # Store base URL for resolving relative video URLs
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
         if not os.path.exists(self.images_dir):
@@ -187,18 +188,19 @@ class SubstackCompiler:
 
         return str(soup)
 
-    def process_html_videos(self, html_content, verbose=True):
+    def process_html_videos(self, html_content, verbose=True, base_url=None):
         """
         Converts video embeds to clickable links since PDFs/EPUBs can't play videos.
 
         Handles:
-        - <video> tags
+        - <video> tags (including Substack-hosted videos)
         - <iframe> embeds (YouTube, Vimeo, etc.)
         - Substack video embeds
 
         Args:
             html_content: HTML string containing videos
             verbose: Print conversion progress
+            base_url: Base URL for resolving relative video URLs (e.g., 'https://example.substack.com')
 
         Returns:
             HTML string with videos replaced by clickable links
@@ -211,22 +213,62 @@ class SubstackCompiler:
         for video in videos:
             video_count += 1
 
-            # Try to get video source
+            # Try to get video source - prefer MP4 over HLS
             video_url = None
-            source = video.find('source')
-            if source and source.get('src'):
-                video_url = source.get('src')
-            elif video.get('src'):
+            sources = video.find_all('source')
+
+            # Look for MP4 source first (more compatible)
+            for source in sources:
+                src = source.get('src')
+                if src and 'type=mp4' in src:
+                    video_url = src
+                    break
+
+            # If no MP4, take any source
+            if not video_url:
+                for source in sources:
+                    src = source.get('src')
+                    if src:
+                        video_url = src
+                        break
+
+            # Fallback to video tag src attribute
+            if not video_url and video.get('src'):
                 video_url = video.get('src')
 
             if video_url:
+                # Handle relative URLs (like Substack's /api/v1/video/...)
+                if video_url.startswith('/'):
+                    if base_url:
+                        video_url = base_url.rstrip('/') + video_url
+                    else:
+                        # Try to extract base URL from poster attribute
+                        poster = video.get('poster', '')
+                        if poster and poster.startswith('http'):
+                            from urllib.parse import urlparse
+                            parsed = urlparse(poster)
+                            video_url = f"{parsed.scheme}://{parsed.netloc}{video_url}"
+
                 # Create clickable link to replace video
-                link_text = f"🎬 Click to watch video"
+                # For Substack videos, note that they may require authentication
+                if '/api/v1/video/' in video_url:
+                    link_text = f"🎬 Click to watch Substack video"
+                    note_text = "(May require login to view)"
+                else:
+                    link_text = f"🎬 Click to watch video"
+                    note_text = ""
+
                 new_tag = soup.new_tag('p', style='background: #f0f0f0; padding: 10px; border-left: 4px solid #FF6B6B;')
                 a_tag = soup.new_tag('a', href=video_url)
                 a_tag.string = link_text
                 new_tag.append(a_tag)
-                new_tag.append(soup.new_string(f" ({video_url[:50]}...)"))
+
+                if note_text:
+                    new_tag.append(soup.new_tag('br'))
+                    small = soup.new_tag('small', style='color: #666;')
+                    small.string = note_text
+                    new_tag.append(small)
+
                 video.replace_with(new_tag)
 
                 if verbose:
@@ -334,7 +376,7 @@ class SubstackCompiler:
             content = post['content']
             
             # Process videos (convert to clickable links)
-            content = self.process_html_videos(content)
+            content = self.process_html_videos(content, base_url=self.base_url)
 
             # Process images for PDF
             content = self.process_html_images(content, for_epub=False)
@@ -379,7 +421,7 @@ class SubstackCompiler:
             
             # Process videos and images for EPUB
             content = post['content']
-            content = self.process_html_videos(content)
+            content = self.process_html_videos(content, base_url=self.base_url)
             content = self.process_html_images(content, for_epub=True, epub_book=book)
 
             full_content = f"<h1>{title}</h1><p><i>{date_str}</i></p>{content}"

@@ -127,7 +127,7 @@ if st.button("Download & Compile"):
                         st.write(f"Compiling {format_option} (processing videos & images)...")
                     else:
                         st.write(f"Compiling {format_option}...")
-                    compiler = SubstackCompiler()
+                    compiler = SubstackCompiler(base_url=url)
                     
                     # Generate filename from title
                     safe_title = "".join(c for c in newsletter_title if c.isalnum() or c in (' ', '_', '-')).strip()
