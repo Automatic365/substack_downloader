@@ -2,9 +2,18 @@ import requests
 import time
 from datetime import datetime
 from bs4 import BeautifulSoup
+from urllib.parse import urlparse
 
 class SubstackFetcher:
     def __init__(self, url, cookie=None):
+        # Validate URL format
+        if not url or not isinstance(url, str):
+            raise ValueError("URL must be a non-empty string")
+
+        parsed = urlparse(url)
+        if not parsed.scheme or not parsed.netloc:
+            raise ValueError(f"Invalid URL format: {url}")
+
         self.url = url.rstrip('/')
         self.api_url = f"{self.url}/api/v1/archive"
         self.headers = {
@@ -18,13 +27,19 @@ class SubstackFetcher:
         Fetches the newsletter title from the main page.
         """
         try:
-            response = requests.get(self.url, headers=self.headers)
+            response = requests.get(self.url, headers=self.headers, timeout=30)
             response.raise_for_status()
             soup = BeautifulSoup(response.content, 'html.parser')
             title = soup.title.string if soup.title else "Substack Archive"
             return title.strip()
-        except Exception as e:
+        except requests.exceptions.Timeout:
+            print(f"Timeout fetching title from {self.url}")
+            return "Substack Archive"
+        except requests.exceptions.RequestException as e:
             print(f"Error fetching title: {e}")
+            return "Substack Archive"
+        except (AttributeError, TypeError) as e:
+            print(f"Error parsing title: {e}")
             return "Substack Archive"
 
     def fetch_archive_metadata(self, limit=None):
@@ -45,38 +60,64 @@ class SubstackFetcher:
                 'limit': limit_per_request
             }
             try:
-                response = requests.get(self.api_url, params=params, headers=self.headers)
-                if response.status_code != 200:
-                    print(f"API Error: {response.status_code}")
-                    break
-                
+                response = requests.get(self.api_url, params=params, headers=self.headers, timeout=30)
+                response.raise_for_status()
                 data = response.json()
-            except Exception as e:
-                print(f"Error fetching API: {e}")
+            except requests.exceptions.Timeout:
+                print(f"API timeout at offset {offset}")
+                break
+            except requests.exceptions.HTTPError as e:
+                print(f"API HTTP error: {e}")
+                break
+            except (ValueError, requests.exceptions.JSONDecodeError) as e:
+                print(f"API returned invalid JSON: {e}")
+                break
+            except requests.exceptions.RequestException as e:
+                print(f"API connection error: {e}")
                 break
 
-            # API returns a list of posts directly
+            # API returns a list of posts directly or dict with 'posts' key
             if isinstance(data, list):
                 new_posts = data
             elif isinstance(data, dict) and 'posts' in data:
-                new_posts = data['posts']
+                posts_list = data['posts']
+                if not isinstance(posts_list, list):
+                    print(f"Warning: API 'posts' field is {type(posts_list)}, expected list")
+                    new_posts = []
+                else:
+                    new_posts = posts_list
             else:
+                print(f"Warning: Unexpected API response format: {type(data)}")
                 new_posts = []
 
             if not new_posts:
                 break
-            
+
             for item in new_posts:
+                # Validate item is a dict
+                if not isinstance(item, dict):
+                    print(f"Warning: Post item is not a dict: {type(item)}, skipping")
+                    continue
+
                 title = item.get('title', 'No Title')
                 canonical_url = item.get('canonical_url', '')
                 post_date_str = item.get('post_date', '')
                 description = item.get('description', '')
+
+                # Validate that we have a URL
+                if not canonical_url or not isinstance(canonical_url, str):
+                    print(f"Warning: Skipping post '{title}': no valid URL")
+                    continue
                 
                 # Parse date
                 # Format: 2024-11-27T18:00:00.000Z
                 try:
                     pub_date = datetime.fromisoformat(post_date_str.replace('Z', '+00:00'))
-                except (ValueError, AttributeError):
+                except ValueError:
+                    print(f"Warning: Invalid date format '{post_date_str}' for post '{title}', using current time")
+                    pub_date = datetime.now()
+                except (AttributeError, TypeError):
+                    print(f"Warning: post_date is not a string: {type(post_date_str)}, using current time")
                     pub_date = datetime.now()
 
                 posts.append({
@@ -106,21 +147,46 @@ class SubstackFetcher:
         Fetches the full HTML content of a single post.
         """
         try:
-            response = requests.get(url, headers=self.headers)
+            response = requests.get(url, headers=self.headers, timeout=30)
             response.raise_for_status()
             soup = BeautifulSoup(response.content, 'html.parser')
-            
-            # Substack content is usually in <div class="available-content"> or <div class="body markup">
-            # We want the main content.
-            content_div = soup.find('div', class_='available-content')
-            if not content_div:
-                content_div = soup.find('div', class_='body markup')
-            
-            if content_div:
-                return str(content_div)
-            else:
-                return ""
+
+            # Try multiple content selectors with fallbacks
+            selectors = [
+                ('div', 'available-content'),
+                ('div', 'body markup'),
+                ('article', None),
+                ('div', 'post-content'),
+                ('main', None)
+            ]
+
+            for tag, class_name in selectors:
+                if class_name:
+                    content_div = soup.find(tag, class_=class_name)
+                else:
+                    content_div = soup.find(tag)
+
+                if content_div:
+                    return str(content_div)
+
+            # Final fallback: try to extract body
+            body = soup.find('body')
+            if body:
+                print(f"Warning: Could not find expected content structure in {url}, using body")
+                return str(body)
+
+            print(f"Warning: No content found for {url}")
+            return ""
+        except requests.exceptions.Timeout:
+            print(f"Timeout fetching content from {url}")
+            return ""
+        except requests.exceptions.RequestException as e:
+            print(f"Error fetching content from {url}: {e}")
+            return ""
+        except MemoryError:
+            print(f"Content too large from {url}")
+            return ""
         except Exception as e:
-            print(f"Error fetching content for {url}: {e}")
+            print(f"Unexpected error fetching content from {url}: {type(e).__name__}: {e}")
             return ""
 

@@ -41,14 +41,15 @@ class SubstackCompiler:
         """
         Downloads an image and returns the local path.
         """
+        filepath = None
         try:
             headers = {
                 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36'
             }
-            
-            response = requests.get(img_url, headers=headers, stream=True)
+
+            response = requests.get(img_url, headers=headers, stream=True, timeout=30)
             response.raise_for_status()
-            
+
             # Determine extension from Content-Type
             content_type = response.headers.get('Content-Type', '').lower()
             if 'image/png' in content_type:
@@ -65,17 +66,35 @@ class SubstackCompiler:
                 elif '.gif' in img_url: ext = 'gif'
                 elif '.svg' in img_url: ext = 'svg'
                 else: ext = 'jpg'
-            
+
             filename = f"{uuid.uuid4()}.{ext}"
             filepath = os.path.join(self.images_dir, filename)
-            
+
             with open(filepath, 'wb') as f:
                 for chunk in response.iter_content(chunk_size=8192):
-                    f.write(chunk)
-            
+                    if chunk:  # filter out keep-alive chunks
+                        f.write(chunk)
+
             return filepath, filename
-        except Exception as e:
+        except requests.exceptions.Timeout:
+            print(f"Timeout downloading image {img_url}")
+            if filepath and os.path.exists(filepath):
+                os.remove(filepath)
+            return None, None
+        except requests.exceptions.RequestException as e:
             print(f"Failed to download image {img_url}: {e}")
+            if filepath and os.path.exists(filepath):
+                os.remove(filepath)
+            return None, None
+        except IOError as e:
+            print(f"Failed to write image {img_url}: {e} (disk full?)")
+            if filepath and os.path.exists(filepath):
+                os.remove(filepath)
+            return None, None
+        except Exception as e:
+            print(f"Unexpected error downloading image {img_url}: {type(e).__name__}: {e}")
+            if filepath and os.path.exists(filepath):
+                os.remove(filepath)
             return None, None
 
     def process_html_images(self, html_content, for_epub=False, epub_book=None):
