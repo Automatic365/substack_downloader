@@ -123,7 +123,10 @@ if st.button("Download & Compile"):
                         time.sleep(0.1) # Slight delay to be nice
                     
                     # 3. Compile
-                    st.write(f"Compiling {format_option}...")
+                    if format_option in ["PDF", "EPUB"]:
+                        st.write(f"Compiling {format_option} (downloading images from posts)...")
+                    else:
+                        st.write(f"Compiling {format_option}...")
                     compiler = SubstackCompiler()
                     
                     # Generate filename from title
