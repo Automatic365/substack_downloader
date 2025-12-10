@@ -22,8 +22,43 @@ format_option = st.selectbox(
     index=0
 )
 
-with st.expander("Advanced Options"):
-    cookie = st.text_input("Substack Cookie (substack.sid)", placeholder="Paste your substack.sid cookie here for paywalled content", type="password")
+with st.expander("🔐 Advanced: Authentication for Paywalled Content"):
+    st.markdown("""
+    **Need to download paywalled content?** You'll need your Substack authentication cookie.
+
+    ### How to find your cookie:
+
+    **Chrome / Edge:**
+    1. Go to any Substack site where you're logged in
+    2. Press `F12` or right-click → "Inspect"
+    3. Go to **Application** tab → **Cookies** → `https://substack.com`
+    4. Find `substack.sid` and copy its **Value**
+
+    **Firefox:**
+    1. Go to any Substack site where you're logged in
+    2. Press `F12` or right-click → "Inspect"
+    3. Go to **Storage** tab → **Cookies** → `https://substack.com`
+    4. Find `substack.sid` and copy its **Value**
+
+    **Safari:**
+    1. Enable Developer menu: Preferences → Advanced → "Show Develop menu"
+    2. Go to any Substack site where you're logged in
+    3. Develop → Show Web Inspector → Storage → Cookies → `substack.com`
+    4. Find `substack.sid` and copy its **Value**
+
+    ⚠️ **Security Note:** Your cookie is sensitive! It will be:
+    - Used only for this download session
+    - Never stored or logged
+    - Transmitted only over HTTPS
+    - Kept in memory only (not saved to disk)
+    """)
+
+    cookie = st.text_input(
+        "Substack Cookie (substack.sid)",
+        placeholder="Paste the substack.sid value here",
+        type="password",
+        help="Format: a long string of random characters like 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'"
+    )
 
 if st.button("Download & Compile"):
     if not url:
