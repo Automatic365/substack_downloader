@@ -1,0 +1,20 @@
+[
+  {
+    "title": "The Future of AI",
+    "canonical_url": "https://example.substack.com/p/future-of-ai",
+    "post_date": "2024-11-27T18:00:00.000Z",
+    "description": "Exploring the latest developments in artificial intelligence and what they mean for society."
+  },
+  {
+    "title": "Climate Change Solutions",
+    "canonical_url": "https://example.substack.com/p/climate-solutions",
+    "post_date": "2024-11-20T15:30:00.000Z",
+    "description": "Practical approaches to addressing climate change at scale."
+  },
+  {
+    "title": "The Remote Work Revolution",
+    "canonical_url": "https://example.substack.com/p/remote-work",
+    "post_date": "2024-11-13T10:00:00.000Z",
+    "description": "How remote work is transforming the modern workplace."
+  }
+]
