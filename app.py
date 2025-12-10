@@ -74,6 +74,20 @@ with st.expander("🔐 Advanced: Authentication for Paywalled Content"):
         help="Format: a long string of random characters like 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'"
     )
 
+    if st.button("Check Status"):
+        if not cookie:
+            st.warning("⚠️ Please enter a cookie first.")
+        else:
+            with st.spinner("Verifying..."):
+                try:
+                    verify_fetcher = SubstackFetcher(url="https://substack.com", cookie=cookie)
+                    if verify_fetcher.verify_auth():
+                        st.success("✅ Session Valid: Logged in")
+                    else:
+                        st.error("❌ Session Invalid: Please check your cookie")
+                except Exception as e:
+                    st.error(f"Error checking status: {e}")
+
 button_label = "Update EPUB" if mode == "Update Existing EPUB" else "Download & Compile"
 
 if st.button(button_label):
