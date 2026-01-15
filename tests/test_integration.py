@@ -4,7 +4,8 @@ These tests make real network calls - mark with @pytest.mark.integration
 """
 import pytest
 import os
-from fetcher_enhanced import SubstackFetcherEnhanced
+from datetime import datetime
+from fetcher import SubstackFetcher
 from models import Post
 
 
@@ -19,11 +20,11 @@ class TestIntegration:
     def public_newsletter_url(self):
         """A known public Substack newsletter for testing"""
         # Using a well-known public newsletter
-        return os.getenv('TEST_SUBSTACK_URL', 'https://platformer.news')
+        return os.getenv('TEST_SUBSTACK_URL', 'https://platformer.substack.com')
 
     def test_fetch_newsletter_title_real(self, public_newsletter_url):
         """Test fetching title from a real newsletter"""
-        fetcher = SubstackFetcherEnhanced(public_newsletter_url)
+        fetcher = SubstackFetcher(public_newsletter_url)
         title = fetcher.get_newsletter_title()
 
         assert title != ""
@@ -33,7 +34,7 @@ class TestIntegration:
 
     def test_fetch_archive_metadata_real(self, public_newsletter_url):
         """Test fetching metadata from a real newsletter"""
-        fetcher = SubstackFetcherEnhanced(public_newsletter_url)
+        fetcher = SubstackFetcher(public_newsletter_url)
         posts = fetcher.fetch_archive_metadata(limit=5)
 
         assert len(posts) > 0
@@ -50,7 +51,7 @@ class TestIntegration:
 
     def test_fetch_post_content_real(self, public_newsletter_url):
         """Test fetching content from a real post"""
-        fetcher = SubstackFetcherEnhanced(public_newsletter_url)
+        fetcher = SubstackFetcher(public_newsletter_url)
 
         # Get one post
         posts = fetcher.fetch_archive_metadata(limit=1)
@@ -66,7 +67,7 @@ class TestIntegration:
 
     def test_concurrent_fetch_real(self, public_newsletter_url):
         """Test concurrent fetching with real posts"""
-        fetcher = SubstackFetcherEnhanced(public_newsletter_url)
+        fetcher = SubstackFetcher(public_newsletter_url)
 
         # Get a few posts
         posts = fetcher.fetch_archive_metadata(limit=3)
@@ -87,7 +88,7 @@ class TestIntegration:
         import time
 
         # Create fetcher with caching enabled
-        fetcher = SubstackFetcherEnhanced(public_newsletter_url, enable_cache=True)
+        fetcher = SubstackFetcher(public_newsletter_url, enable_cache=True)
 
         # Get one post
         posts = fetcher.fetch_archive_metadata(limit=1)
@@ -117,16 +118,16 @@ class TestIntegration:
     def test_invalid_url_raises(self):
         """Test that invalid URLs raise appropriate errors"""
         with pytest.raises(ValueError, match="Invalid URL format"):
-            SubstackFetcherEnhanced("not-a-valid-url")
+            SubstackFetcher("not-a-valid-url")
 
         with pytest.raises(ValueError, match="URL must be a non-empty string"):
-            SubstackFetcherEnhanced("")
+            SubstackFetcher("")
 
     def test_retry_on_timeout(self):
         """Test retry logic (using a URL that times out)"""
         # This test is tricky - we'd need a mock server or a very slow endpoint
         # For now, just verify the retry session is configured
-        fetcher = SubstackFetcherEnhanced("https://example.substack.com")
+        fetcher = SubstackFetcher("https://example.substack.com")
         assert fetcher.session is not None
         assert fetcher.session.adapters is not None
 

@@ -13,7 +13,7 @@ Transformed your Substack downloader from **4/10 stability** to **production-gra
 2. **`logger.py`** - Professional logging setup
 3. **`models.py`** - Post dataclass with validation
 4. **`utils.py`** - Utility functions (sanitization, formatting, caching)
-5. **`fetcher_enhanced.py`** - Enhanced fetcher with all new features
+5. **`fetcher.py`** - Enhanced fetcher with all new features
 
 ### New Documentation
 6. **`STABILITY_FIXES.md`** - All stability improvements
@@ -41,13 +41,13 @@ Transformed your Substack downloader from **4/10 stability** to **production-gra
 | # | Feature | Status | Files | Impact |
 |---|---------|--------|-------|--------|
 | 1 | Logging Framework | ✅ Complete | logger.py, all modules | Better debugging |
-| 2 | Retry Logic | ✅ Complete | fetcher_enhanced.py | Much more reliable |
-| 3 | Progress Bars | ✅ Complete | fetcher_enhanced.py | Better UX |
+| 2 | Retry Logic | ✅ Complete | fetcher.py | Much more reliable |
+| 3 | Progress Bars | ✅ Complete | fetcher.py | Better UX |
 | 4 | Configuration File | ✅ Complete | config.py | Easy customization |
 | 5 | Type Hints | ✅ Complete | All new modules | Better IDE support |
 | 6 | Post Model | ✅ Complete | models.py | Type-safe operations |
-| 7 | Concurrent Fetching | ✅ Complete | fetcher_enhanced.py | 5-10x faster |
-| 8 | Caching Layer | ✅ Complete | fetcher_enhanced.py, utils.py | 50x+ faster reruns |
+| 7 | Concurrent Fetching | ✅ Complete | fetcher.py | 5-10x faster |
+| 8 | Caching Layer | ✅ Complete | fetcher.py, utils.py | 50x+ faster reruns |
 | 9 | Input Sanitization | ✅ Complete | utils.py | Security & cross-platform |
 | 10 | Environment Variables | ✅ Complete | config.py | Deployment-ready |
 | BONUS | Integration Tests | ✅ Complete | tests/test_integration.py | Test real usage |
@@ -140,7 +140,7 @@ Transformed your Substack downloader from **4/10 stability** to **production-gra
 
 ### Enhanced Fetcher
 ```python
-class SubstackFetcherEnhanced:
+class SubstackFetcher:
     def __init__(url, cookie=None, enable_cache=False)
     def get_newsletter_title() -> str
     def fetch_archive_metadata(limit=None) -> List[Post]
@@ -258,13 +258,13 @@ SUBSTACK_OUTPUT_DIR=output
 
 **Easy:** Keep using `fetcher.py` with stability improvements
 
-**Better:** Switch to `fetcher_enhanced.py` for new features:
+**Better:** Switch to `fetcher.py` for new features:
 ```python
 # Change this:
 from fetcher import SubstackFetcher
 
 # To this:
-from fetcher_enhanced import SubstackFetcherEnhanced
+from fetcher import SubstackFetcher
 
 # Everything else works the same!
 ```
@@ -347,7 +347,7 @@ open htmlcov/index.html
 pip install mypy
 
 # Check types
-mypy fetcher_enhanced.py models.py utils.py
+mypy fetcher.py models.py utils.py
 ```
 
 ---
@@ -449,9 +449,9 @@ pip install -r requirements.txt
 
 ### Basic Usage
 ```python
-from fetcher_enhanced import SubstackFetcherEnhanced
+from fetcher import SubstackFetcher
 
-fetcher = SubstackFetcherEnhanced(url, enable_cache=True)
+fetcher = SubstackFetcher(url, enable_cache=True)
 posts = fetcher.fetch_archive_metadata(limit=50)
 posts = fetcher.fetch_all_content_concurrent(posts)
 ```

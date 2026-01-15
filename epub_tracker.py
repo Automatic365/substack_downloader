@@ -2,6 +2,10 @@ import json
 import os
 from datetime import datetime
 
+from logger import setup_logger
+
+logger = setup_logger(__name__)
+
 class EpubTracker:
     """
     Tracks which posts have been included in an EPUB file.
@@ -37,7 +41,7 @@ class EpubTracker:
             with open(self.tracker_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
         except (json.JSONDecodeError, IOError) as e:
-            print(f"Error loading tracker file: {e}")
+            logger.error("Error loading tracker file: %s", e)
             return {
                 'title': '',
                 'author': '',
@@ -67,9 +71,9 @@ class EpubTracker:
         try:
             with open(self.tracker_path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
-            print(f"Tracker saved: {len(post_links)} posts tracked")
+            logger.info("Tracker saved: %s posts tracked", len(post_links))
         except IOError as e:
-            print(f"Error saving tracker file: {e}")
+            logger.error("Error saving tracker file: %s", e)
 
     def get_new_posts(self, all_posts):
         """
@@ -84,12 +88,18 @@ class EpubTracker:
         tracker_data = self.load()
         existing_links = set(tracker_data['post_links'])
 
-        new_posts = [
-            post for post in all_posts
-            if post['link'] not in existing_links
-        ]
+        new_posts = []
+        for post in all_posts:
+            link = post.get('link') if isinstance(post, dict) else getattr(post, 'link', None)
+            if link and link not in existing_links:
+                new_posts.append(post)
 
-        print(f"Total posts: {len(all_posts)}, Already included: {len(existing_links)}, New: {len(new_posts)}")
+        logger.info(
+            "Total posts: %s, Already included: %s, New: %s",
+            len(all_posts),
+            len(existing_links),
+            len(new_posts),
+        )
         return new_posts
 
     def exists(self):

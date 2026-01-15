@@ -8,18 +8,33 @@ from bs4 import BeautifulSoup
 from fpdf import FPDF, HTMLMixin
 from ebooklib import epub
 
+from config import IMAGE_CHUNK_SIZE, MAX_IMAGE_SIZE, OUTPUT_DIR, USER_AGENT
+from logger import setup_logger
+
+logger = setup_logger(__name__)
+
 class PDF(FPDF, HTMLMixin):
     pass
 
 class SubstackCompiler:
-    def __init__(self, output_dir="output", base_url=None):
-        self.output_dir = output_dir
+    def __init__(self, output_dir=None, base_url=None):
+        self.output_dir = output_dir or OUTPUT_DIR
         self.images_dir = os.path.join(self.output_dir, "images")
         self.base_url = base_url  # Store base URL for resolving relative video URLs
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
         if not os.path.exists(self.images_dir):
             os.makedirs(self.images_dir)
+
+    def _normalize_post(self, post):
+        if hasattr(post, "to_dict"):
+            return post.to_dict()
+        if isinstance(post, dict):
+            return post
+        raise TypeError(f"Unsupported post type: {type(post)}")
+
+    def _normalize_posts(self, posts):
+        return [self._normalize_post(post) for post in posts]
 
     def sanitize_text(self, text):
         """
@@ -45,11 +60,25 @@ class SubstackCompiler:
         filepath = None
         try:
             headers = {
-                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36'
+                'User-Agent': USER_AGENT
             }
 
             response = requests.get(img_url, headers=headers, stream=True, timeout=30)
             response.raise_for_status()
+
+            content_length = response.headers.get('Content-Length')
+            if content_length:
+                try:
+                    if int(content_length) > MAX_IMAGE_SIZE:
+                        logger.warning(
+                            "Skipping image %s (size %s exceeds limit %s)",
+                            img_url,
+                            content_length,
+                            MAX_IMAGE_SIZE,
+                        )
+                        return None, None
+                except ValueError:
+                    logger.debug("Invalid Content-Length header for %s", img_url)
 
             # Determine extension from Content-Type
             content_type = response.headers.get('Content-Type', '').lower()
@@ -72,28 +101,47 @@ class SubstackCompiler:
             filepath = os.path.join(self.images_dir, filename)
 
             with open(filepath, 'wb') as f:
-                for chunk in response.iter_content(chunk_size=8192):
+                bytes_written = 0
+                for chunk in response.iter_content(chunk_size=IMAGE_CHUNK_SIZE):
                     if chunk:  # filter out keep-alive chunks
+                        bytes_written += len(chunk)
+                        if bytes_written > MAX_IMAGE_SIZE:
+                            logger.warning(
+                                "Skipping image %s (download exceeded limit %s)",
+                                img_url,
+                                MAX_IMAGE_SIZE,
+                            )
+                            raise ValueError("Image exceeds size limit")
                         f.write(chunk)
 
             return filepath, filename
         except requests.exceptions.Timeout:
-            print(f"Timeout downloading image {img_url}")
+            logger.error("Timeout downloading image %s", img_url)
             if filepath and os.path.exists(filepath):
                 os.remove(filepath)
             return None, None
         except requests.exceptions.RequestException as e:
-            print(f"Failed to download image {img_url}: {e}")
+            logger.error("Failed to download image %s: %s", img_url, e)
             if filepath and os.path.exists(filepath):
                 os.remove(filepath)
             return None, None
         except IOError as e:
-            print(f"Failed to write image {img_url}: {e} (disk full?)")
+            logger.error("Failed to write image %s: %s (disk full?)", img_url, e)
+            if filepath and os.path.exists(filepath):
+                os.remove(filepath)
+            return None, None
+        except ValueError as e:
+            logger.warning("Skipping image %s: %s", img_url, e)
             if filepath and os.path.exists(filepath):
                 os.remove(filepath)
             return None, None
         except Exception as e:
-            print(f"Unexpected error downloading image {img_url}: {type(e).__name__}: {e}")
+            logger.error(
+                "Unexpected error downloading image %s: %s: %s",
+                img_url,
+                type(e).__name__,
+                e,
+            )
             if filepath and os.path.exists(filepath):
                 os.remove(filepath)
             return None, None
@@ -123,7 +171,7 @@ class SubstackCompiler:
         failed_count = 0
 
         if verbose:
-            print(f"  Found {len(images)} image(s) to download...")
+            logger.info("Found %s image(s) to download", len(images))
 
         for img in images:
             src = img.get('src')
@@ -133,11 +181,11 @@ class SubstackCompiler:
             # Skip data URIs (embedded images)
             if src.startswith('data:'):
                 if verbose:
-                    print(f"  Skipping embedded data URI image")
+                    logger.info("Skipping embedded data URI image")
                 continue
 
             if verbose:
-                print(f"  Downloading: {src[:80]}...")
+                logger.info("Downloading image: %s", src[:80])
 
             local_path, filename = self.download_image(src)
             if local_path:
@@ -175,9 +223,9 @@ class SubstackCompiler:
                         img['src'] = f"images/{filename}"
 
                         if verbose:
-                            print(f"    ✓ Added to EPUB: {filename}")
+                            logger.info("Added image to EPUB: %s", filename)
                     except Exception as e:
-                        print(f"    ⚠️  Error adding image to EPUB: {e}")
+                        logger.warning("Error adding image to EPUB: %s", e)
                         failed_count += 1
                         downloaded_count -= 1
                 else:
@@ -195,10 +243,14 @@ class SubstackCompiler:
                 # Image download failed
                 failed_count += 1
                 if verbose:
-                    print(f"  ⚠️  Failed to download image, keeping original URL")
+                    logger.warning("Failed to download image, keeping original URL")
 
         if verbose and (downloaded_count > 0 or failed_count > 0):
-            print(f"  ✓ Downloaded {downloaded_count} image(s), {failed_count} failed")
+            logger.info(
+                "Downloaded %s image(s), %s failed",
+                downloaded_count,
+                failed_count,
+            )
 
         return str(soup)
 
@@ -286,7 +338,7 @@ class SubstackCompiler:
                 video.replace_with(new_tag)
 
                 if verbose:
-                    print(f"  📹 Converted video to link: {video_url[:60]}...")
+                    logger.info("Converted video to link: %s", video_url[:60])
             else:
                 # No URL found, just add a note
                 note = soup.new_tag('p', style='background: #fff3cd; padding: 10px;')
@@ -346,10 +398,10 @@ class SubstackCompiler:
                 iframe.replace_with(new_tag)
 
                 if verbose:
-                    print(f"  📹 Converted {platform} embed to link: {video_url[:60]}...")
+                    logger.info("Converted %s embed to link: %s", platform, video_url[:60])
 
         if verbose and video_count > 0:
-            print(f"  ✓ Converted {video_count} video(s) to clickable links")
+            logger.info("Converted %s video(s) to clickable links", video_count)
 
         return str(soup)
 
@@ -357,6 +409,7 @@ class SubstackCompiler:
         """
         Compiles a list of posts into a single PDF file with a Table of Contents.
         """
+        normalized_posts = self._normalize_posts(posts)
         if not filename.endswith('.pdf'):
             filename += '.pdf'
 
@@ -376,7 +429,7 @@ class SubstackCompiler:
         pdf.cell(0, 10, "Table of Contents", new_x="LMARGIN", new_y="NEXT")
         pdf.set_font("Helvetica", size=12)
         
-        for post in posts:
+        for post in normalized_posts:
             title = self.sanitize_text(post['title'])
             date_str = post['pub_date'].strftime("%Y-%m-%d")
             pdf.cell(0, 8, f"{date_str} - {title}", new_x="LMARGIN", new_y="NEXT")
@@ -384,7 +437,7 @@ class SubstackCompiler:
         pdf.add_page()
 
         # Content
-        for post in posts:
+        for post in normalized_posts:
             title = self.sanitize_text(post['title'])
             date_str = post['pub_date'].strftime("%B %d, %Y")
             content = post['content']
@@ -407,13 +460,13 @@ class SubstackCompiler:
                 content = self.sanitize_text(content)
                 pdf.write_html(content)
             except Exception as e:
-                print(f"Warning: Could not render HTML for post '{title}': {e}")
+                logger.warning("Could not render HTML for post '%s': %s", title, e)
                 pdf.set_font("Helvetica", size=12)
                 pdf.multi_cell(0, 5, "(Content could not be rendered due to complex HTML formatting)")
             
             pdf.add_page()
 
-        print(f"Generating PDF: {filepath}...")
+        logger.info("Generating PDF: %s", filepath)
         pdf.output(filepath)
         return filepath
 
@@ -428,21 +481,26 @@ class SubstackCompiler:
             author: Author name
             update_existing: If True, append to existing EPUB rather than create new one
         """
+        normalized_posts = self._normalize_posts(posts)
         if not filename.endswith('.epub'):
             filename += '.epub'
         filepath = os.path.join(self.output_dir, filename)
 
         # Load existing EPUB if updating, otherwise create new one
         if update_existing and os.path.exists(filepath):
-            print(f"Loading existing EPUB: {filepath}...")
+            logger.info("Loading existing EPUB: %s", filepath)
             book = epub.read_epub(filepath)
 
             # Get existing chapters
             existing_chapters = [item for item in book.get_items() if isinstance(item, epub.EpubHtml) and item.file_name.startswith('chap_')]
             next_chapter_num = len(existing_chapters) + 1
-            print(f"  Found {len(existing_chapters)} existing chapter(s), starting from chapter {next_chapter_num}")
+            logger.info(
+                "Found %s existing chapter(s), starting from chapter %s",
+                len(existing_chapters),
+                next_chapter_num,
+            )
         else:
-            print(f"Creating new EPUB: {filepath}...")
+            logger.info("Creating new EPUB: %s", filepath)
             book = epub.EpubBook()
             # Use URL as unique identifier
             book_id = f"substack-{title.replace(' ', '-').lower()}"
@@ -456,7 +514,7 @@ class SubstackCompiler:
 
         # Create new chapters
         new_chapters = []
-        for i, post in enumerate(posts):
+        for i, post in enumerate(normalized_posts):
             post_title = post['title']
             date_str = post['pub_date'].strftime("%B %d, %Y")
 
@@ -493,19 +551,28 @@ class SubstackCompiler:
 
         epub.write_epub(filepath, book, {})
         if update_existing:
-            print(f"Updated EPUB with {len(new_chapters)} new chapter(s): {filepath}")
+            logger.info(
+                "Updated EPUB with %s new chapter(s): %s",
+                len(new_chapters),
+                filepath,
+            )
         else:
-            print(f"Generated EPUB with {len(all_chapters)} chapter(s): {filepath}")
+            logger.info(
+                "Generated EPUB with %s chapter(s): %s",
+                len(all_chapters),
+                filepath,
+            )
         return filepath
 
     def compile_to_json(self, posts, filename="substack_book.json"):
+        normalized_posts = self._normalize_posts(posts)
         if not filename.endswith('.json'):
             filename += '.json'
         filepath = os.path.join(self.output_dir, filename)
 
         # Convert datetime objects to string
         serializable_posts = []
-        for post in posts:
+        for post in normalized_posts:
             p = post.copy()
             p['pub_date'] = p['pub_date'].isoformat()
             serializable_posts.append(p)
@@ -513,10 +580,11 @@ class SubstackCompiler:
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(serializable_posts, f, indent=4, ensure_ascii=False)
         
-        print(f"Generating JSON: {filepath}...")
+        logger.info("Generating JSON: %s", filepath)
         return filepath
 
     def compile_to_html(self, posts, filename="substack_book.html"):
+        normalized_posts = self._normalize_posts(posts)
         if not filename.endswith('.html'):
             filename += '.html'
         filepath = os.path.join(self.output_dir, filename)
@@ -539,7 +607,7 @@ class SubstackCompiler:
             <h1>Substack Archive</h1>
         """
 
-        for post in posts:
+        for post in normalized_posts:
             title = post['title']
             date_str = post['pub_date'].strftime("%B %d, %Y")
             content = post['content']
@@ -564,16 +632,17 @@ class SubstackCompiler:
         with open(filepath, 'w', encoding='utf-8') as f:
             f.write(html_content)
         
-        print(f"Generating HTML: {filepath}...")
+        logger.info("Generating HTML: %s", filepath)
         return filepath
 
     def compile_to_txt(self, posts, filename="substack_book.txt"):
+        normalized_posts = self._normalize_posts(posts)
         if not filename.endswith('.txt'):
             filename += '.txt'
         filepath = os.path.join(self.output_dir, filename)
 
         with open(filepath, 'w', encoding='utf-8') as f:
-            for post in posts:
+            for post in normalized_posts:
                 title = post['title']
                 date_str = post['pub_date'].strftime("%B %d, %Y")
                 text_content = markdownify.markdownify(post['content'], strip=['a', 'img'])
@@ -584,17 +653,18 @@ class SubstackCompiler:
                 f.write(text_content)
                 f.write("\n\n" + "-"*50 + "\n\n")
 
-        print(f"Generating TXT: {filepath}...")
+        logger.info("Generating TXT: %s", filepath)
         return filepath
 
     def compile_to_md(self, posts, filename="substack_book.md"):
+        normalized_posts = self._normalize_posts(posts)
         if not filename.endswith('.md'):
             filename += '.md'
         filepath = os.path.join(self.output_dir, filename)
 
         with open(filepath, 'w', encoding='utf-8') as f:
             f.write("# Substack Archive\n\n")
-            for post in posts:
+            for post in normalized_posts:
                 title = post['title']
                 date_str = post['pub_date'].strftime("%B %d, %Y")
                 md_content = markdownify.markdownify(post['content'])
@@ -604,5 +674,5 @@ class SubstackCompiler:
                 f.write(md_content)
                 f.write("\n\n---\n\n")
 
-        print(f"Generating Markdown: {filepath}...")
+        logger.info("Generating Markdown: %s", filepath)
         return filepath

@@ -12,7 +12,7 @@ The authentication implementation is functional and reasonably secure for person
 ### How It Works
 
 ```python
-# In fetcher.py / fetcher_enhanced.py
+# In fetcher.py
 def __init__(self, url, cookie=None):
     self.headers = {'User-Agent': '...'}
     if cookie:
@@ -129,7 +129,7 @@ logger.debug(f"Headers: {self.headers}")  # Would expose cookie!
 
 **Current Code:**
 ```python
-# In fetcher_enhanced.py
+# In fetcher.py
 with cache_file.open('wb') as f:
     pickle.dump(content, f)  # Unencrypted!
 ```
@@ -197,7 +197,7 @@ handler.addFilter(SensitiveDataFilter())
 
 #### 2. Warn About HTTP URLs
 ```python
-# In fetcher_enhanced.py __init__
+# In fetcher.py __init__
 if parsed.scheme == 'http':
     logger.warning("⚠️  WARNING: Using HTTP instead of HTTPS. Cookie may be exposed!")
     if cookie:

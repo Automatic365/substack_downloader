@@ -47,10 +47,10 @@ pip install -r requirements-dev.txt
 ### Basic Usage
 
 ```python
-from fetcher_enhanced import SubstackFetcherEnhanced
+from fetcher import SubstackFetcher
 
 # Create fetcher
-fetcher = SubstackFetcherEnhanced('https://your-newsletter.substack.com')
+fetcher = SubstackFetcher('https://your-newsletter.substack.com')
 
 # Download posts
 posts = fetcher.fetch_archive_metadata(limit=50)
@@ -86,7 +86,7 @@ streamlit run app.py
 ### 1. Concurrent Downloads (5-10x Faster)
 
 ```python
-fetcher = SubstackFetcherEnhanced(url)
+fetcher = SubstackFetcher(url)
 posts = fetcher.fetch_archive_metadata(limit=100)
 
 # Sequential (old): 10-15 minutes
@@ -172,13 +172,13 @@ Or edit `config.py` directly for persistent changes.
 
 ## API Reference
 
-### SubstackFetcherEnhanced
+### SubstackFetcher
 
 ```python
-from fetcher_enhanced import SubstackFetcherEnhanced
+from fetcher import SubstackFetcher
 
 # Initialize
-fetcher = SubstackFetcherEnhanced(
+fetcher = SubstackFetcher(
     url: str,                     # Newsletter URL
     cookie: Optional[str] = None, # Authentication cookie
     enable_cache: bool = False    # Enable caching
@@ -319,9 +319,9 @@ for post in posts:
 
 **New:**
 ```python
-from fetcher_enhanced import SubstackFetcherEnhanced
+from fetcher import SubstackFetcher
 
-fetcher = SubstackFetcherEnhanced(url, enable_cache=True)
+fetcher = SubstackFetcher(url, enable_cache=True)
 posts = fetcher.fetch_archive_metadata()
 posts = fetcher.fetch_all_content_concurrent(posts)  # Much faster!
 ```
@@ -377,7 +377,7 @@ pytest -m integration
 │  CLI (main.py) / Web (app.py)          │
 └────────────┬────────────────────────────┘
              │
-             ├──> SubstackFetcherEnhanced
+             ├──> SubstackFetcher
              │    ├─> Retry logic (urllib3)
              │    ├─> Progress bars (tqdm)
              │    ├─> Caching (pickle)
@@ -405,7 +405,7 @@ substack_downloader/
 ├── models.py              # Data models
 ├── utils.py               # Utilities
 ├── fetcher.py             # Original (stable)
-├── fetcher_enhanced.py    # Enhanced version ⭐
+├── fetcher.py    # Enhanced version ⭐
 ├── parser.py              # HTML cleaning
 ├── compiler.py            # Format compilation
 ├── main.py                # CLI
@@ -430,7 +430,7 @@ substack_downloader/
 
 1. Install dev dependencies: `pip install -r requirements-dev.txt`
 2. Run tests: `pytest`
-3. Check types: `mypy fetcher_enhanced.py`
+3. Check types: `mypy fetcher.py`
 4. Format code: `black .`
 
 ---

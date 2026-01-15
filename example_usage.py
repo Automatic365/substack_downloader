@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Example usage of the enhanced Substack downloader
-Demonstrates all new features
+Example usage of the Substack downloader
+Demonstrates all features
 """
 import os
-from fetcher_enhanced import SubstackFetcherEnhanced
+from fetcher import SubstackFetcher
 from logger import setup_logger
 from utils import sanitize_filename, format_size
 
@@ -19,7 +19,7 @@ def basic_usage():
     url = "https://platformer.news"
 
     # Create fetcher
-    fetcher = SubstackFetcherEnhanced(url)
+    fetcher = SubstackFetcher(url)
 
     # Get newsletter title
     title = fetcher.get_newsletter_title()
@@ -42,7 +42,7 @@ def concurrent_usage():
     print("\n=== Concurrent Fetching ===\n")
 
     url = "https://platformer.news"
-    fetcher = SubstackFetcherEnhanced(url)
+    fetcher = SubstackFetcher(url)
 
     # Fetch metadata
     posts = fetcher.fetch_archive_metadata(limit=10)
@@ -62,14 +62,14 @@ def caching_usage():
     url = "https://platformer.news"
 
     # Create fetcher with caching enabled
-    fetcher = SubstackFetcherEnhanced(url, enable_cache=True)
+    fetcher = SubstackFetcher(url, enable_cache=True)
 
     print("First run (no cache)...")
     posts = fetcher.fetch_archive_metadata(limit=3)
     fetcher.fetch_all_content_concurrent(posts)
 
     print("\nSecond run (with cache)...")
-    fetcher2 = SubstackFetcherEnhanced(url, enable_cache=True)
+    fetcher2 = SubstackFetcher(url, enable_cache=True)
     posts2 = fetcher2.fetch_archive_metadata(limit=3)
     fetcher2.fetch_all_content_concurrent(posts2)
     print("Much faster! Content loaded from cache.")
@@ -95,7 +95,7 @@ def environment_variables_usage():
 
     # These will be automatically picked up by config.py
     url = "https://platformer.news"
-    fetcher = SubstackFetcherEnhanced(url)
+    fetcher = SubstackFetcher(url)
 
     print("\nFetcher configured with environment variables!")
 
@@ -110,7 +110,7 @@ def authenticated_usage():
     cookie = os.getenv('SUBSTACK_COOKIE')
 
     if cookie:
-        fetcher = SubstackFetcherEnhanced(url, cookie=cookie)
+        fetcher = SubstackFetcher(url, cookie=cookie)
         print("Fetcher configured with authentication cookie")
     else:
         print("Set SUBSTACK_COOKIE environment variable for paywalled content")
@@ -121,7 +121,7 @@ def post_model_usage():
     print("\n=== Post Model ===\n")
 
     url = "https://platformer.news"
-    fetcher = SubstackFetcherEnhanced(url)
+    fetcher = SubstackFetcher(url)
 
     posts = fetcher.fetch_archive_metadata(limit=1)
 
@@ -161,7 +161,7 @@ def complete_workflow():
 
     # 1. Setup
     url = "https://platformer.news"
-    fetcher = SubstackFetcherEnhanced(url, enable_cache=True)
+    fetcher = SubstackFetcher(url, enable_cache=True)
 
     # 2. Get title
     title = fetcher.get_newsletter_title()

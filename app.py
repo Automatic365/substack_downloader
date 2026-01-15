@@ -5,6 +5,9 @@ from fetcher import SubstackFetcher
 from parser import SubstackParser
 from compiler import SubstackCompiler
 from epub_tracker import EpubTracker
+from logger import setup_logger
+
+logger = setup_logger(__name__)
 
 st.set_page_config(page_title="Substack Downloader", page_icon="📚")
 
@@ -34,6 +37,12 @@ format_option = st.selectbox(
     index=1 if mode == "Update Existing EPUB" else 0,
     disabled=mode == "Update Existing EPUB",
     help="Update mode only works with EPUB format" if mode == "Update Existing EPUB" else None
+)
+
+use_cache = st.checkbox(
+    "Use cache",
+    value=False,
+    help="Cache fetched content to speed up repeat downloads"
 )
 
 with st.expander("🔐 Advanced: Authentication for Paywalled Content"):
@@ -80,12 +89,17 @@ with st.expander("🔐 Advanced: Authentication for Paywalled Content"):
         else:
             with st.spinner("Verifying..."):
                 try:
-                    verify_fetcher = SubstackFetcher(url="https://substack.com", cookie=cookie)
+                    verify_fetcher = SubstackFetcher(
+                        url="https://substack.com",
+                        cookie=cookie,
+                        enable_cache=False,
+                    )
                     if verify_fetcher.verify_auth():
                         st.success("✅ Session Valid: Logged in")
                     else:
                         st.error("❌ Session Invalid: Please check your cookie")
                 except Exception as e:
+                    logger.exception("Error checking auth status")
                     st.error(f"Error checking status: {e}")
 
 button_label = "Update EPUB" if mode == "Update Existing EPUB" else "Download & Compile"
@@ -98,7 +112,7 @@ if st.button(button_label):
             try:
                 # 1. Fetch Metadata
                 st.write("Fetching newsletter information...")
-                fetcher = SubstackFetcher(url, cookie=cookie)
+                fetcher = SubstackFetcher(url, cookie=cookie, enable_cache=use_cache)
                 newsletter_title = fetcher.get_newsletter_title()
                 newsletter_author = fetcher.get_newsletter_author()
 
@@ -148,20 +162,16 @@ if st.button(button_label):
                 status_text = st.empty()
 
                 for i, meta in enumerate(metadata_list):
-                    status_text.text(f"Processing {i+1}/{len(metadata_list)}: {meta['title']}")
+                    status_text.text(f"Processing {i+1}/{len(metadata_list)}: {meta.title}")
 
                     # Fetch full content
-                    content = fetcher.fetch_post_content(meta['link'])
+                    content = fetcher.fetch_post_content(meta.link)
 
                     # Parse
                     cleaned_content = parser_tool.parse_content(content)
 
-                    cleaned_posts.append({
-                        'title': meta['title'],
-                        'pub_date': meta['pub_date'],
-                        'content': cleaned_content,
-                        'link': meta['link']  # Store link for tracking
-                    })
+                    meta.content = cleaned_content
+                    cleaned_posts.append(meta)
 
                     progress_bar.progress((i + 1) / len(metadata_list))
                     time.sleep(0.1) # Slight delay to be nice
@@ -200,12 +210,12 @@ if st.button(button_label):
                         # Load existing tracker and append new links
                         tracker = EpubTracker(epub_path)
                         existing_data = tracker.load()
-                        all_links = existing_data['post_links'] + [p['link'] for p in cleaned_posts]
+                        all_links = existing_data['post_links'] + [p.link for p in cleaned_posts]
                         tracker.save(newsletter_title, newsletter_author, url, all_links)
                     else:
                         # Create new tracker
                         tracker = EpubTracker(output_path)
-                        tracker.save(newsletter_title, newsletter_author, url, [p['link'] for p in cleaned_posts])
+                        tracker.save(newsletter_title, newsletter_author, url, [p.link for p in cleaned_posts])
 
                 elif format_option == "PDF":
                     file_ext = "pdf"
@@ -252,5 +262,6 @@ if st.button(button_label):
                     )
                         
             except Exception as e:
+                logger.exception("Processing failed")
                 st.error(f"An error occurred: {e}")
                 status.update(label="Error", state="error")

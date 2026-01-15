@@ -16,7 +16,7 @@ class TestSubstackFetcher:
     @pytest.fixture
     def fetcher_with_cookie(self):
         """Create a fetcher instance with cookie for testing"""
-        return SubstackFetcher('https://example.substack.com', cookie='session=abc123')
+        return SubstackFetcher('https://example.substack.com', cookie='substack.sid=abc123')
 
     def test_init_strips_trailing_slash(self):
         """Test that trailing slash is removed from URL"""
@@ -27,7 +27,7 @@ class TestSubstackFetcher:
     def test_init_with_cookie(self, fetcher_with_cookie):
         """Test that cookie is added to headers"""
         assert 'Cookie' in fetcher_with_cookie.headers
-        assert fetcher_with_cookie.headers['Cookie'] == 'session=abc123'
+        assert fetcher_with_cookie.headers['Cookie'] == 'substack.sid=abc123'
 
     def test_init_without_cookie(self, fetcher):
         """Test that headers don't have Cookie when not provided"""
@@ -133,10 +133,10 @@ class TestFetchArchiveMetadata:
             posts = fetcher.fetch_archive_metadata()
 
             assert len(posts) == 1
-            assert posts[0]['title'] == 'Test Post'
-            assert posts[0]['link'] == 'https://example.substack.com/p/test-post'
-            assert posts[0]['description'] == 'Test description'
-            assert isinstance(posts[0]['pub_date'], datetime)
+            assert posts[0].title == 'Test Post'
+            assert posts[0].link == 'https://example.substack.com/p/test-post'
+            assert posts[0].description == 'Test description'
+            assert isinstance(posts[0].pub_date, datetime)
 
     def test_fetch_with_limit(self, fetcher, sample_post):
         """Test fetching with a limit"""
@@ -191,7 +191,7 @@ class TestFetchArchiveMetadata:
             posts = fetcher.fetch_archive_metadata()
 
             assert len(posts) == 1
-            assert posts[0]['title'] == 'Test Post'
+            assert posts[0].title == 'Test Post'
 
     def test_fetch_empty_response(self, fetcher):
         """Test handling empty response"""
@@ -246,9 +246,9 @@ class TestFetchArchiveMetadata:
 
             posts = fetcher.fetch_archive_metadata()
 
-            assert posts[0]['pub_date'].year == 2024
-            assert posts[0]['pub_date'].month == 11
-            assert posts[0]['pub_date'].day == 27
+            assert posts[0].pub_date.year == 2024
+            assert posts[0].pub_date.month == 11
+            assert posts[0].pub_date.day == 27
 
     def test_date_parsing_invalid(self, fetcher):
         """Test date parsing with invalid date falls back to current time"""
@@ -265,8 +265,8 @@ class TestFetchArchiveMetadata:
             posts = fetcher.fetch_archive_metadata()
 
             # Should fallback to datetime.now()
-            assert isinstance(posts[0]['pub_date'], datetime)
-            assert posts[0]['pub_date'].year == datetime.now().year
+            assert isinstance(posts[0].pub_date, datetime)
+            assert posts[0].pub_date.year == datetime.now().year
 
     def test_missing_fields_use_defaults(self, fetcher):
         """Test that missing fields use default values"""
@@ -279,9 +279,9 @@ class TestFetchArchiveMetadata:
 
             posts = fetcher.fetch_archive_metadata()
 
-            assert posts[0]['title'] == 'No Title'
-            assert posts[0]['description'] == ''
-            assert isinstance(posts[0]['pub_date'], datetime)
+            assert posts[0].title == 'No Title'
+            assert posts[0].description == ''
+            assert isinstance(posts[0].pub_date, datetime)
 
     def test_posts_sorted_by_date_oldest_first(self, fetcher, sample_post):
         """Test that posts are sorted oldest first"""
@@ -296,9 +296,9 @@ class TestFetchArchiveMetadata:
 
             posts = fetcher.fetch_archive_metadata()
 
-            assert posts[0]['title'] == 'Oldest'
-            assert posts[1]['title'] == 'Middle'
-            assert posts[2]['title'] == 'Newest'
+            assert posts[0].title == 'Oldest'
+            assert posts[1].title == 'Middle'
+            assert posts[2].title == 'Newest'
 
 
 class TestFetchPostContent:
@@ -389,3 +389,34 @@ class TestFetchPostContent:
             content = fetcher.fetch_post_content('https://example.substack.com/p/test')
 
             assert content == ''
+
+
+class TestAuthVerification:
+    """Tests for verify_auth method"""
+
+    def test_verify_auth_success(self):
+        """Test that verify_auth returns True on 200 OK"""
+        fetcher = SubstackFetcher('https://example.substack.com', cookie='test_cookie')
+        with requests_mock.Mocker() as m:
+            m.get('https://substack.com/api/v1/subscriptions', status_code=200)
+            assert fetcher.verify_auth() is True
+
+    def test_verify_auth_failure_401(self):
+        """Test that verify_auth returns False on 401 Unauthorized"""
+        fetcher = SubstackFetcher('https://example.substack.com', cookie='test_cookie')
+        with requests_mock.Mocker() as m:
+            m.get('https://substack.com/api/v1/subscriptions', status_code=401)
+            assert fetcher.verify_auth() is False
+
+    def test_verify_auth_no_cookie(self):
+        """Test that verify_auth returns False if no cookie is present"""
+        fetcher = SubstackFetcher('https://example.substack.com')
+        assert 'Cookie' not in fetcher.headers
+        assert fetcher.verify_auth() is False
+
+    def test_verify_auth_network_error(self):
+        """Test that verify_auth returns False on network error"""
+        fetcher = SubstackFetcher('https://example.substack.com', cookie='test_cookie')
+        with requests_mock.Mocker() as m:
+            m.get('https://substack.com/api/v1/subscriptions', exc=requests.exceptions.ConnectionError)
+            assert fetcher.verify_auth() is False

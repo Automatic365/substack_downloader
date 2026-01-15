@@ -34,7 +34,7 @@ export SUBSTACK_LOG_FILE=substack.log
 ---
 
 ### 2. ✅ Retry Logic with Exponential Backoff
-**Files:** `fetcher_enhanced.py`
+**Files:** `fetcher.py`
 
 **Features:**
 - Automatic retry on network failures
@@ -53,7 +53,7 @@ export SUBSTACK_RETRY_BACKOFF=1.0
 ---
 
 ### 3. ✅ Progress Indicators (tqdm)
-**Files:** `fetcher_enhanced.py`
+**Files:** `fetcher.py`
 
 **Features:**
 - Real-time progress bars for:
@@ -114,7 +114,7 @@ def fetch_archive_metadata(self, limit: Optional[int] = None) -> List[Post]:
 **Use mypy for checking:**
 ```bash
 pip install mypy
-mypy fetcher_enhanced.py
+mypy fetcher.py
 ```
 
 ---
@@ -149,7 +149,7 @@ post = Post(
 ---
 
 ### 7. ✅ Concurrent Content Fetching
-**Files:** `fetcher_enhanced.py`
+**Files:** `fetcher.py`
 
 **Features:**
 - Parallel downloads using ThreadPoolExecutor
@@ -159,7 +159,7 @@ post = Post(
 
 **Usage:**
 ```python
-fetcher = SubstackFetcherEnhanced(url)
+fetcher = SubstackFetcher(url)
 posts = fetcher.fetch_archive_metadata(limit=100)
 
 # Concurrent fetch with 5 workers
@@ -173,7 +173,7 @@ posts = fetcher.fetch_all_content_concurrent(posts, max_workers=5)
 ---
 
 ### 8. ✅ Caching Layer
-**Files:** `fetcher_enhanced.py`, `utils.py`
+**Files:** `fetcher.py`, `utils.py`
 
 **Features:**
 - Caches fetched content locally
@@ -189,7 +189,7 @@ export SUBSTACK_CACHE_DIR=.cache
 
 **Or in code:**
 ```python
-fetcher = SubstackFetcherEnhanced(url, enable_cache=True)
+fetcher = SubstackFetcher(url, enable_cache=True)
 
 # Clear cache when needed
 fetcher.clear_cache()
@@ -290,7 +290,7 @@ substack_downloader/
 ├── models.py              # Post dataclass
 ├── utils.py               # Utility functions
 ├── fetcher.py             # Original (still works)
-├── fetcher_enhanced.py    # Enhanced version with all features
+├── fetcher.py    # Enhanced version with all features
 ├── parser.py              # Unchanged
 ├── compiler.py            # Unchanged (for now)
 ├── main.py                # CLI (can use either fetcher)
@@ -326,9 +326,9 @@ for post in posts:
 
 **New code:**
 ```python
-from fetcher_enhanced import SubstackFetcherEnhanced
+from fetcher import SubstackFetcher
 
-fetcher = SubstackFetcherEnhanced(url, cookie=cookie, enable_cache=True)
+fetcher = SubstackFetcher(url, cookie=cookie, enable_cache=True)
 posts = fetcher.fetch_archive_metadata(limit=50)
 
 # Concurrent fetching with progress bars!
@@ -337,7 +337,7 @@ posts = fetcher.fetch_all_content_concurrent(posts)
 
 ### Option 2: Keep Using Original
 
-The original `fetcher.py` still works with all the stability fixes applied. Use `fetcher_enhanced.py` when you want:
+The original `fetcher.py` still works with all the stability fixes applied. Use `fetcher.py` when you want:
 - Concurrent downloads
 - Caching
 - Progress bars
@@ -414,7 +414,7 @@ All enhancements are:
 - ✅ Configuration-driven
 - ✅ Documented
 
-The original `fetcher.py` with stability fixes still works. Use `fetcher_enhanced.py` when you want the new features.
+The original `fetcher.py` with stability fixes still works. Use `fetcher.py` when you want the new features.
 
 ---
 
@@ -427,9 +427,9 @@ The original `fetcher.py` with stability fixes still works. Use `fetcher_enhance
 
 2. **Try the enhanced fetcher:**
    ```python
-   from fetcher_enhanced import SubstackFetcherEnhanced
+   from fetcher import SubstackFetcher
 
-   fetcher = SubstackFetcherEnhanced('https://your-newsletter.substack.com', enable_cache=True)
+   fetcher = SubstackFetcher('https://your-newsletter.substack.com', enable_cache=True)
    posts = fetcher.fetch_archive_metadata(limit=10)
    posts = fetcher.fetch_all_content_concurrent(posts)
    ```

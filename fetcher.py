@@ -1,12 +1,47 @@
-import requests
+import pickle
 import time
-from datetime import datetime
-from bs4 import BeautifulSoup
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
+from typing import Callable, Iterable, List, Optional
 from urllib.parse import urlparse
 
+import requests
+from bs4 import BeautifulSoup
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+from config import (
+    API_LIMIT_PER_REQUEST,
+    CACHE_DIR,
+    CONTENT_SELECTORS,
+    ENABLE_CACHE,
+    MAX_CONCURRENT_FETCHES,
+    MAX_RETRIES,
+    RATE_LIMIT_DELAY,
+    REQUEST_TIMEOUT,
+    RETRY_BACKOFF_FACTOR,
+    RETRY_STATUS_CODES,
+    USER_AGENT,
+)
+from logger import setup_logger
+from models import Post
+from utils import get_cache_key
+
+logger = setup_logger(__name__)
+
+
+ProgressCallback = Optional[Callable[[int, Optional[int], Optional[Post]], None]]
+
+
 class SubstackFetcher:
-    def __init__(self, url, cookie=None):
-        # Validate URL format
+    def __init__(
+        self,
+        url: str,
+        cookie: Optional[str] = None,
+        enable_cache: bool = ENABLE_CACHE,
+        enable_retries: bool = True,
+        max_concurrent: int = MAX_CONCURRENT_FETCHES,
+    ):
         if not url or not isinstance(url, str):
             raise ValueError("URL must be a non-empty string")
 
@@ -14,259 +49,358 @@ class SubstackFetcher:
         if not parsed.scheme or not parsed.netloc:
             raise ValueError(f"Invalid URL format: {url}")
 
-        # Security: Warn about HTTP, block with authentication
         if parsed.scheme == 'http':
             if cookie:
                 raise ValueError(
                     "Security Error: Cannot use authentication cookie with HTTP URL. "
                     "Use HTTPS to protect your credentials."
                 )
-            print(f"⚠️  WARNING: Using HTTP instead of HTTPS. Connection not encrypted!")
+            logger.warning(
+                "Using HTTP instead of HTTPS for %s. Connection is not encrypted.",
+                url,
+            )
 
         self.url = url.rstrip('/')
         self.api_url = f"{self.url}/api/v1/archive"
+        self.enable_cache = enable_cache
+        self.max_concurrent = max_concurrent
+
+        if self.enable_cache:
+            self.cache_dir = Path(CACHE_DIR)
+            self.cache_dir.mkdir(exist_ok=True)
+            logger.info("Cache enabled at %s", self.cache_dir)
+        else:
+            self.cache_dir = None
+
         self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'User-Agent': USER_AGENT,
             'Referer': 'https://substack.com/',
         }
         if cookie:
-            # Ensure cookie is formatted as a key-value pair if only value is provided
             if "substack.sid=" not in cookie:
                 self.headers['Cookie'] = f"substack.sid={cookie}"
             else:
                 self.headers['Cookie'] = cookie
+            logger.info("Cookie provided for authenticated requests")
 
-    def get_newsletter_title(self):
-        """
-        Fetches the newsletter title from the main page.
-        """
+        self.session = self._create_session(enable_retries)
+        logger.info("Initialized fetcher for %s", self.url)
+
+    def _create_session(self, enable_retries: bool) -> requests.Session:
+        session = requests.Session()
+        if not enable_retries:
+            return session
+
+        retry_strategy = Retry(
+            total=MAX_RETRIES,
+            backoff_factor=RETRY_BACKOFF_FACTOR,
+            status_forcelist=RETRY_STATUS_CODES,
+            allowed_methods=["GET"],
+        )
+
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        session.mount("http://", adapter)
+        session.mount("https://", adapter)
+
+        logger.debug(
+            "Created session with %s retries, backoff factor %s",
+            MAX_RETRIES,
+            RETRY_BACKOFF_FACTOR,
+        )
+        return session
+
+    def get_newsletter_title(self) -> str:
         try:
-            response = requests.get(self.url, headers=self.headers, timeout=30)
+            response = self.session.get(
+                self.url,
+                headers=self.headers,
+                timeout=REQUEST_TIMEOUT,
+            )
             response.raise_for_status()
             soup = BeautifulSoup(response.content, 'html.parser')
             title = soup.title.string if soup.title else "Substack Archive"
             return title.strip()
         except requests.exceptions.Timeout:
-            print(f"Timeout fetching title from {self.url}")
+            logger.error("Timeout fetching title from %s", self.url)
             return "Substack Archive"
-        except requests.exceptions.RequestException as e:
-            print(f"Error fetching title: {e}")
+        except requests.exceptions.RequestException as exc:
+            logger.error("Error fetching title: %s", exc)
             return "Substack Archive"
-        except (AttributeError, TypeError) as e:
-            print(f"Error parsing title: {e}")
+        except (AttributeError, TypeError) as exc:
+            logger.error("Error parsing title: %s", exc)
             return "Substack Archive"
 
-    def get_newsletter_author(self):
-        """
-        Fetches the newsletter author name from the main page.
-        Tries multiple methods to find author information.
-        """
+    def get_newsletter_author(self) -> str:
         try:
-            response = requests.get(self.url, headers=self.headers, timeout=30)
+            response = self.session.get(
+                self.url,
+                headers=self.headers,
+                timeout=REQUEST_TIMEOUT,
+            )
             response.raise_for_status()
             soup = BeautifulSoup(response.content, 'html.parser')
 
-            # Method 1: Look for meta tags
             author_meta = soup.find('meta', attrs={'name': 'author'})
             if author_meta and author_meta.get('content'):
                 return author_meta['content'].strip()
 
-            # Method 2: Look for publisher meta tag
             publisher_meta = soup.find('meta', attrs={'property': 'article:publisher'})
             if publisher_meta and publisher_meta.get('content'):
                 return publisher_meta['content'].strip()
 
-            # Method 3: Look for author link/name in the page
             author_link = soup.find('a', class_=lambda x: x and 'author' in str(x).lower())
             if author_link:
                 return author_link.get_text().strip()
 
-            # Method 4: Extract from subdomain (e.g., authorname.substack.com)
             parsed = urlparse(self.url)
             subdomain = parsed.netloc.split('.')[0]
             if subdomain and subdomain != 'www':
-                # Capitalize first letter of each word
                 return ' '.join(word.capitalize() for word in subdomain.split('-'))
 
             return "Unknown Author"
         except requests.exceptions.Timeout:
-            print(f"Timeout fetching author from {self.url}")
+            logger.error("Timeout fetching author from %s", self.url)
             return "Unknown Author"
-        except requests.exceptions.RequestException as e:
-            print(f"Error fetching author: {e}")
+        except requests.exceptions.RequestException as exc:
+            logger.error("Error fetching author: %s", exc)
             return "Unknown Author"
-        except Exception as e:
-            print(f"Error parsing author: {e}")
+        except Exception as exc:
+            logger.error("Error parsing author: %s", exc)
             return "Unknown Author"
 
-    def fetch_archive_metadata(self, limit=None):
-        """
-        Fetches metadata for all posts using the Archive API.
-        Returns a list of dicts: {title, url, pub_date, description}
-        """
-        print(f"Fetching archive from: {self.api_url}")
-        posts = []
+    def fetch_archive_metadata(
+        self,
+        limit: Optional[int] = None,
+        progress_callback: ProgressCallback = None,
+    ) -> List[Post]:
+        logger.info("Fetching archive from: %s", self.api_url)
+        posts: List[Post] = []
         offset = 0
-        limit_per_request = 12
-        
+
         while True:
             params = {
                 'sort': 'new',
                 'search': '',
                 'offset': offset,
-                'limit': limit_per_request
+                'limit': API_LIMIT_PER_REQUEST,
             }
             try:
-                response = requests.get(self.api_url, params=params, headers=self.headers, timeout=30)
+                response = self.session.get(
+                    self.api_url,
+                    params=params,
+                    headers=self.headers,
+                    timeout=REQUEST_TIMEOUT,
+                )
                 response.raise_for_status()
                 data = response.json()
             except requests.exceptions.Timeout:
-                print(f"API timeout at offset {offset}")
+                logger.error("API timeout at offset %s", offset)
                 break
-            except requests.exceptions.HTTPError as e:
-                print(f"API HTTP error: {e}")
+            except requests.exceptions.HTTPError as exc:
+                logger.error("API HTTP error: %s", exc)
                 break
-            except (ValueError, requests.exceptions.JSONDecodeError) as e:
-                print(f"API returned invalid JSON: {e}")
+            except (ValueError, requests.exceptions.JSONDecodeError) as exc:
+                logger.error("API returned invalid JSON: %s", exc)
                 break
-            except requests.exceptions.RequestException as e:
-                print(f"API connection error: {e}")
+            except requests.exceptions.RequestException as exc:
+                logger.error("API connection error: %s", exc)
                 break
 
-            # API returns a list of posts directly or dict with 'posts' key
-            if isinstance(data, list):
-                new_posts = data
-            elif isinstance(data, dict) and 'posts' in data:
-                posts_list = data['posts']
-                if not isinstance(posts_list, list):
-                    print(f"Warning: API 'posts' field is {type(posts_list)}, expected list")
-                    new_posts = []
-                else:
-                    new_posts = posts_list
-            else:
-                print(f"Warning: Unexpected API response format: {type(data)}")
-                new_posts = []
-
+            new_posts = self._parse_api_response(data)
             if not new_posts:
                 break
 
             for item in new_posts:
-                # Validate item is a dict
-                if not isinstance(item, dict):
-                    print(f"Warning: Post item is not a dict: {type(item)}, skipping")
+                post = Post.from_api_response(item)
+                if not post:
                     continue
 
-                title = item.get('title', 'No Title')
-                canonical_url = item.get('canonical_url', '')
-                post_date_str = item.get('post_date', '')
-                description = item.get('description', '')
+                posts.append(post)
+                if progress_callback:
+                    progress_callback(len(posts), limit, post)
 
-                # Validate that we have a URL
-                if not canonical_url or not isinstance(canonical_url, str):
-                    print(f"Warning: Skipping post '{title}': no valid URL")
-                    continue
-                
-                # Parse date
-                # Format: 2024-11-27T18:00:00.000Z
-                try:
-                    pub_date = datetime.fromisoformat(post_date_str.replace('Z', '+00:00'))
-                except ValueError:
-                    print(f"Warning: Invalid date format '{post_date_str}' for post '{title}', using current time")
-                    pub_date = datetime.now()
-                except (AttributeError, TypeError):
-                    print(f"Warning: post_date is not a string: {type(post_date_str)}, using current time")
-                    pub_date = datetime.now()
-
-                posts.append({
-                    'title': title,
-                    'link': canonical_url,
-                    'pub_date': pub_date,
-                    'description': description
-                })
-                
                 if limit and len(posts) >= limit:
                     return posts[:limit]
 
             offset += len(new_posts)
-            # If we got fewer than requested, we are at the end
-            if len(new_posts) < limit_per_request:
+            if len(new_posts) < API_LIMIT_PER_REQUEST:
                 break
-            
-            time.sleep(1) # Be nice to the API
 
-        # Sort by date: Oldest first
-        posts.sort(key=lambda x: x['pub_date'])
-        print(f"Found {len(posts)} posts in archive.")
+            time.sleep(RATE_LIMIT_DELAY)
+
+        posts.sort(key=lambda x: x.pub_date)
+        logger.info("Found %s posts in archive.", len(posts))
         return posts
 
-    def fetch_post_content(self, url):
-        """
-        Fetches the full HTML content of a single post.
-        """
+    def _parse_api_response(self, data: any) -> List[dict]:
+        if isinstance(data, list):
+            return data
+        if isinstance(data, dict) and 'posts' in data:
+            posts_list = data['posts']
+            if not isinstance(posts_list, list):
+                logger.warning("API 'posts' field is %s, expected list", type(posts_list))
+                return []
+            return posts_list
+
+        logger.warning("Unexpected API response format: %s", type(data))
+        return []
+
+    def fetch_post_content(self, url: str) -> str:
+        if self.enable_cache:
+            cached = self._get_from_cache(url)
+            if cached is not None:
+                logger.debug("Using cached content for %s", url)
+                return cached
+
         try:
-            response = requests.get(url, headers=self.headers, timeout=30)
+            response = self.session.get(
+                url,
+                headers=self.headers,
+                timeout=REQUEST_TIMEOUT,
+            )
             response.raise_for_status()
-            soup = BeautifulSoup(response.content, 'html.parser')
+            content = self._extract_content(response.content, url)
 
-            # Try multiple content selectors with fallbacks
-            selectors = [
-                ('div', 'available-content'),
-                ('div', 'body markup'),
-                ('article', None),
-                ('div', 'post-content'),
-                ('main', None)
-            ]
+            if self.enable_cache and content:
+                self._save_to_cache(url, content)
 
-            for tag, class_name in selectors:
-                if class_name:
-                    content_div = soup.find(tag, class_=class_name)
-                else:
-                    content_div = soup.find(tag)
-
-                if content_div:
-                    return str(content_div)
-
-            # Final fallback: try to extract body
-            body = soup.find('body')
-            if body:
-                print(f"Warning: Could not find expected content structure in {url}, using body")
-                return str(body)
-
-            print(f"Warning: No content found for {url}")
-            return ""
+            return content
         except requests.exceptions.Timeout:
-            print(f"Timeout fetching content from {url}")
+            logger.error("Timeout fetching content from %s", url)
             return ""
-        except requests.exceptions.RequestException as e:
-            print(f"Error fetching content from {url}: {e}")
+        except requests.exceptions.RequestException as exc:
+            logger.error("Error fetching content from %s: %s", url, exc)
             return ""
         except MemoryError:
-            print(f"Content too large from {url}")
+            logger.error("Content too large from %s", url)
             return ""
-        except Exception as e:
-            print(f"Unexpected error fetching content from {url}: {type(e).__name__}: {e}")
+        except Exception as exc:
+            logger.error("Unexpected error fetching content from %s: %s", url, exc)
             return ""
 
+    def _extract_content(self, html: bytes, url: str) -> str:
+        soup = BeautifulSoup(html, 'html.parser')
 
-    def verify_auth(self):
-        """
-        Verifies if the current session is authenticated by checking the subscriptions endpoint.
-        Returns:
-            bool: True if authenticated, False otherwise
-        """
+        for tag, class_name in CONTENT_SELECTORS:
+            if class_name:
+                content_div = soup.find(tag, class_=class_name)
+            else:
+                content_div = soup.find(tag)
+
+            if content_div:
+                return str(content_div)
+
+        body = soup.find('body')
+        if body:
+            logger.warning("Could not find expected content structure in %s, using body", url)
+            return str(body)
+
+        logger.warning("No content found for %s", url)
+        return ""
+
+    def fetch_all_content_concurrent(
+        self,
+        posts: Iterable[Post],
+        max_workers: Optional[int] = None,
+        progress_callback: ProgressCallback = None,
+    ) -> List[Post]:
+        post_list = list(posts)
+        total = len(post_list)
+        if total == 0:
+            return post_list
+
+        workers = max_workers or self.max_concurrent
+        logger.info("Fetching content for %s posts with %s workers", total, workers)
+
+        completed = 0
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            future_to_post = {
+                executor.submit(self.fetch_post_content, post.link): post
+                for post in post_list
+            }
+
+            for future in as_completed(future_to_post):
+                post = future_to_post[future]
+                try:
+                    post.content = future.result()
+                    if not post.content:
+                        logger.warning("No content retrieved for %s", post.link)
+                except Exception as exc:
+                    logger.error("Failed to fetch %s: %s", post.link, exc)
+                    post.content = ""
+                finally:
+                    completed += 1
+                    if progress_callback:
+                        progress_callback(completed, total, post)
+                    time.sleep(RATE_LIMIT_DELAY / max(workers, 1))
+
+        return post_list
+
+    def _get_from_cache(self, url: str) -> Optional[str]:
+        if not self.cache_dir:
+            return None
+
+        cache_key = get_cache_key(url)
+        cache_file = self.cache_dir / f"{cache_key}.pkl"
+
+        if cache_file.exists():
+            try:
+                with cache_file.open('rb') as f:
+                    return pickle.load(f)
+            except Exception as exc:
+                logger.warning("Failed to load cache for %s: %s", url, exc)
+                return None
+
+        return None
+
+    def _save_to_cache(self, url: str, content: str) -> None:
+        if not self.cache_dir:
+            return
+
+        cache_key = get_cache_key(url)
+        cache_file = self.cache_dir / f"{cache_key}.pkl"
+
+        try:
+            with cache_file.open('wb') as f:
+                pickle.dump(content, f)
+            logger.debug("Cached content for %s", url)
+        except Exception as exc:
+            logger.warning("Failed to cache %s: %s", url, exc)
+
+    def clear_cache(self) -> None:
+        if not self.cache_dir:
+            logger.info("Cache not enabled")
+            return
+
+        if self.cache_dir.exists():
+            cache_files = list(self.cache_dir.glob("*.pkl"))
+            for cache_file in cache_files:
+                cache_file.unlink()
+            logger.info("Cleared %s cached files", len(cache_files))
+        else:
+            logger.info("Cache directory does not exist")
+
+    def verify_auth(self) -> bool:
         if 'Cookie' not in self.headers:
             return False
 
-        # Use the subscriptions endpoint as it requires authentication
-        auth_url = f"https://substack.com/api/v1/subscriptions"
-        
+        auth_url = "https://substack.com/api/v1/subscriptions"
+
         try:
-            response = requests.get(auth_url, headers=self.headers, timeout=10)
-            # If we get a 200 OK, the session is valid
+            response = self.session.get(
+                auth_url,
+                headers=self.headers,
+                timeout=REQUEST_TIMEOUT,
+            )
             if response.status_code == 200:
+                logger.info("Authentication verification successful")
                 return True
-            # 401 Unauthorized means invalid cookie
+
+            logger.warning(
+                "Authentication verification failed with status %s",
+                response.status_code,
+            )
             return False
-        except requests.exceptions.RequestException as e:
-            print(f"Error verifying authentication: {e}")
+        except requests.exceptions.RequestException as exc:
+            logger.error("Error verifying authentication: %s", exc)
             return False
