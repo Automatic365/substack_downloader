@@ -49,7 +49,7 @@ python main.py <SUBSTACK_URL> [OPTIONS]
 - `--output`: Output filename (default: `<Newsletter_Title>.<format>`)
 - `--limit`: Limit the number of posts to download
 - `--format`: Output format (choices: `pdf`, `epub`, `json`, `html`, `txt`, `md`; default: `pdf`)
-- `--cookie`: Substack session cookie (`substack.sid`) for authentication (required for paywalled posts)
+- `--cookie`: Deprecated. Use `SUBSTACK_COOKIE` environment variable instead (required for paywalled posts)
 
 **Examples:**
 
@@ -60,7 +60,7 @@ python main.py https://newsletter.pragmaticengineer.com
 
 Download paywalled posts (requires cookie):
 ```bash
-python main.py https://newsletter.pragmaticengineer.com --cookie "substack.sid=YOUR_COOKIE_HERE"
+SUBSTACK_COOKIE="substack.sid=YOUR_COOKIE_HERE" python main.py https://newsletter.pragmaticengineer.com
 ```
 
 Download the last 10 posts as EPUB:

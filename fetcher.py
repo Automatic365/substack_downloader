@@ -97,6 +97,7 @@ class SubstackFetcher:
             backoff_factor=RETRY_BACKOFF_FACTOR,
             status_forcelist=RETRY_STATUS_CODES,
             allowed_methods=["GET"],
+            respect_retry_after_header=True,
         )
 
         adapter = HTTPAdapter(max_retries=retry_strategy)
@@ -426,4 +427,14 @@ class SubstackFetcher:
             logger.error("HTTP error for %s: %s", url, exc)
             return
         categorized = self._classify_http_error(status_code, url)
+        if status_code == 429:
+            retry_after = None
+            if response is not None:
+                retry_after = response.headers.get("Retry-After")
+            if retry_after:
+                logger.warning(
+                    "Rate limited by %s (Retry-After: %s seconds)",
+                    url,
+                    retry_after,
+                )
         logger.error("%s", categorized)

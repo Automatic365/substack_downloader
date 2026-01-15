@@ -1,4 +1,5 @@
 import argparse
+import os
 import time
 from fetcher import SubstackFetcher
 from parser import parse_content
@@ -13,12 +14,18 @@ def main():
     parser.add_argument("--output", default=None, help="Output filename (default: <Newsletter_Title>.<format>)")
     parser.add_argument("--limit", type=int, default=None, help="Limit the number of posts to download")
     parser.add_argument("--format", choices=['pdf', 'epub', 'json', 'html', 'txt', 'md'], default='pdf', help="Output format (default: pdf)")
-    parser.add_argument("--cookie", default=None, help="Substack session cookie (substack.sid) for authentication")
+    parser.add_argument("--cookie", default=None, help="DEPRECATED: Use SUBSTACK_COOKIE environment variable instead")
     
     args = parser.parse_args()
     
+    if args.cookie:
+        logger.warning("The --cookie argument is deprecated. Use SUBSTACK_COOKIE instead.")
+
+    env_cookie = os.getenv("SUBSTACK_COOKIE")
+    cookie = env_cookie or args.cookie
+
     # 1. Fetch Metadata
-    fetcher = SubstackFetcher(args.url, cookie=args.cookie)
+    fetcher = SubstackFetcher(args.url, cookie=cookie)
     newsletter_title = fetcher.get_newsletter_title()
     logger.info("Fetching archive for: %s", newsletter_title)
     
