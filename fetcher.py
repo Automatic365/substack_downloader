@@ -23,6 +23,7 @@ from config import (
     RETRY_STATUS_CODES,
     USER_AGENT,
 )
+from exceptions import AuthenticationError, NetworkError, RateLimitError, SubstackError
 from logger import setup_logger
 from models import Post
 from utils import get_cache_key
@@ -197,7 +198,7 @@ class SubstackFetcher:
                 logger.error("API timeout at offset %s", offset)
                 break
             except requests.exceptions.HTTPError as exc:
-                logger.error("API HTTP error: %s", exc)
+                self._log_http_error(exc, response=response, url=self.api_url)
                 break
             except (ValueError, requests.exceptions.JSONDecodeError) as exc:
                 logger.error("API returned invalid JSON: %s", exc)
@@ -252,6 +253,7 @@ class SubstackFetcher:
                 logger.debug("Using cached content for %s", url)
                 return cached
 
+        response = None
         try:
             response = self.session.get(
                 url,
@@ -267,6 +269,9 @@ class SubstackFetcher:
             return content
         except requests.exceptions.Timeout:
             logger.error("Timeout fetching content from %s", url)
+            return ""
+        except requests.exceptions.HTTPError as exc:
+            self._log_http_error(exc, response=response, url=url)
             return ""
         except requests.exceptions.RequestException as exc:
             logger.error("Error fetching content from %s: %s", url, exc)
@@ -396,11 +401,29 @@ class SubstackFetcher:
                 logger.info("Authentication verification successful")
                 return True
 
-            logger.warning(
-                "Authentication verification failed with status %s",
-                response.status_code,
+            self._log_http_error(
+                requests.exceptions.HTTPError(f"Status {response.status_code}"),
+                response=response,
+                url=auth_url,
             )
             return False
         except requests.exceptions.RequestException as exc:
             logger.error("Error verifying authentication: %s", exc)
             return False
+
+    def _classify_http_error(self, status_code: int, url: str) -> SubstackError:
+        if status_code in (401, 403):
+            return AuthenticationError(f"Authentication required for {url} (status {status_code})")
+        if status_code == 429:
+            return RateLimitError(f"Rate limited by {url} (status {status_code})")
+        if status_code >= 500:
+            return NetworkError(f"Server error from {url} (status {status_code})")
+        return SubstackError(f"HTTP error {status_code} from {url}")
+
+    def _log_http_error(self, exc: Exception, response: Optional[requests.Response], url: str) -> None:
+        status_code = response.status_code if response is not None else None
+        if status_code is None:
+            logger.error("HTTP error for %s: %s", url, exc)
+            return
+        categorized = self._classify_http_error(status_code, url)
+        logger.error("%s", categorized)

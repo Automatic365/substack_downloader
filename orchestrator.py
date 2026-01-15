@@ -50,6 +50,7 @@ def run_download(
     status_callback: StatusCallback = None,
     progress_callback: ProgressCallback = None,
 ) -> OrchestratorResult:
+    logger.info("Starting download for %s", url)
     fetcher = SubstackFetcher(url, cookie=cookie, enable_cache=use_cache)
 
     _notify_status(status_callback, "Fetching newsletter information...")
@@ -63,6 +64,7 @@ def run_download(
     if mode == "Update Existing EPUB":
         tracker = EpubTracker(epub_path)
         if not tracker.exists():
+            logger.warning("Missing EPUB for update mode: %s", epub_path)
             return OrchestratorResult(
                 status="missing_epub",
                 message=f"No existing EPUB found at {epub_path}. Please create one first using 'Create New' mode.",
@@ -75,6 +77,7 @@ def run_download(
         metadata_list = tracker.get_new_posts(all_metadata)
 
         if not metadata_list:
+            logger.info("No new posts for %s", newsletter_title)
             return OrchestratorResult(
                 status="no_new_posts",
                 message="No new posts found! Your EPUB is up to date.",
@@ -87,6 +90,7 @@ def run_download(
         metadata_list = fetcher.fetch_archive_metadata(limit=fetch_limit)
 
         if not metadata_list:
+            logger.warning("No posts found for %s", url)
             return OrchestratorResult(
                 status="no_posts",
                 message="No posts found. Please check the URL.",
