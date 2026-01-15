@@ -5,252 +5,198 @@ from logger import setup_logger
 
 logger = setup_logger(__name__)
 
-st.set_page_config(page_title="Substack Breach Protocol", page_icon="💻")
+st.set_page_config(page_title="Substack Downloader", page_icon="⚡")
 
-# --- CSS INJECTION FOR HACKER AESTHETIC ---
+# --- EXECUTIVE THEME INJECTION ---
 st.markdown("""
 <style>
-    /* Global Font & Colors */
-    body {
-        color: #00FF41 !important;
-        background-color: #000000 !important;
-        font-family: 'Courier New', Courier, monospace !important;
-    }
-    .stApp {
-        background-color: #000000;
+    /* 
+       THEME: EXECUTIVE MIDNIGHT
+       - Background: #141428 (Analyzed from exec.png)
+       - Card BG: #1E1E32
+       - Text: #E2E8F0
+       - Primary: #3B82F6 (Royal Blue)
+    */
+
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+    html, body, [class*="css"] {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+        background-color: #141428 !important;
+        color: #E2E8F0 !important;
     }
 
-    /* CRT Scanline Effect Overlay */
-    .scanlines {
-        position: fixed;
-        left: 0;
-        top: 0;
-        width: 100vw;
-        height: 100vh;
-        pointer-events: none;
-        z-index: 9999;
-        background: linear-gradient(
-            to bottom,
-            rgba(255,255,255,0),
-            rgba(255,255,255,0) 50%,
-            rgba(0,0,0,0.2) 50%,
-            rgba(0,0,0,0.2)
-        );
-        background-size: 100% 4px;
-        box-shadow: inset 0 0 100px rgba(0,0,0,0.9);
+    /* Headings */
+    h1, h2, h3 {
+        color: #FFFFFF !important;
+        font-weight: 700 !important;
+        letter-spacing: -0.5px !important;
     }
+    h1 {
+        background: linear-gradient(90deg, #FFFFFF, #94A3B8);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        padding-bottom: 0.5rem;
+    }
+
+    /* Cards / Containers */
+    .stApp > header { background-color: #141428 !important; }
     
-    /* Headers with Glow */
-    h1, h2, h3, h4, h5, h6 {
-        color: #00FF41 !important;
-        text-shadow: 0 0 5px #00FF41;
-        font-family: 'Courier New', Courier, monospace !important;
-        text-transform: uppercase;
-        border-bottom: 2px solid #00FF41;
-        padding-bottom: 5px;
+    .stTextInput > div > div > input, 
+    .stNumberInput > div > div > input {
+        background-color: #1E1E32 !important;
+        color: #FFFFFF !important;
+        border: 1px solid #33334D !important;
+        border-radius: 8px !important;
+        padding: 0.5rem !important;
+    }
+    .stTextInput > div > div > input:focus, 
+    .stNumberInput > div > div > input:focus {
+        border-color: #3B82F6 !important;
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3) !important;
     }
 
-    /* Input Fields - Brutalist */
-    .stTextInput input, .stNumberInput input {
-        background-color: #000000 !important;
-        color: #00FF41 !important;
-        border: 1px solid #00FF41 !important;
-        border-radius: 0px !important;
-        font-family: 'Courier New', Courier, monospace !important;
-    }
-    .stTextInput input:focus, .stNumberInput input:focus {
-        box-shadow: 0 0 10px #00FF41 !important;
-        border-color: #00FF41 !important;
+    /* Selectbox & Radio */
+    .stSelectbox div[data-baseweb="select"] > div {
+        background-color: #1E1E32 !important;
+        border: 1px solid #33334D !important;
+        border-radius: 8px !important;
+        color: #FFFFFF !important;
     }
 
-    /* Buttons - Solid Block Style */
+    /* Primary Button (Gradient) */
     .stButton button {
-        background-color: transparent !important;
-        color: #00FF41 !important;
-        border: 2px solid #00FF41 !important;
-        border-radius: 0px !important;
-        font-family: 'Courier New', Courier, monospace !important;
-        text-transform: uppercase;
-        font-weight: bold;
-        transition: all 0.2s;
+        background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%) !important;
+        color: #FFFFFF !important;
+        border: none !important;
+        border-radius: 8px !important;
+        padding: 0.6rem 1.5rem !important;
+        font-weight: 600 !important;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2) !important;
+        transition: transform 0.1s ease, box-shadow 0.1s ease !important;
+        width: 100%;
     }
     .stButton button:hover {
-        background-color: #00FF41 !important;
-        color: #000000 !important;
-        box-shadow: 0 0 15px #00FF41;
+        transform: translateY(-1px);
+        box-shadow: 0 6px 8px -1px rgba(0, 0, 0, 0.3) !important;
     }
     .stButton button:active {
-        transform: translate(2px, 2px);
-    }
-
-    /* Radio Buttons & Checkboxes */
-    .stRadio label, .stCheckbox label {
-        color: #00FF41 !important;
-        font-family: 'Courier New', Courier, monospace !important;
-    }
-
-    /* Select Box */
-    .stSelectbox div[data-baseweb="select"] > div {
-        background-color: #000000 !important;
-        border-color: #00FF41 !important;
-        border-radius: 0px !important;
-        color: #00FF41 !important;
-    }
-
-    /* Progress Bar */
-    .stProgress > div > div > div > div {
-        background-color: #00FF41 !important;
+        transform: translateY(0);
     }
 
     /* Expander */
     .streamlit-expanderHeader {
-        background-color: #0d1117 !important;
-        color: #00FF41 !important;
-        border: 1px solid #00FF41 !important;
-        border-radius: 0px !important;
+        background-color: #1E1E32 !important;
+        border-radius: 8px !important;
+        border: 1px solid #33334D !important;
     }
     
-    /* Status Container */
-    .stStatusWidget {
-        border: 1px solid #00FF41 !important;
-        background-color: #000000 !important;
+    /* Progress Bar */
+    .stProgress > div > div > div > div {
+        background: linear-gradient(90deg, #3B82F6, #60A5FA) !important;
     }
+
+    /* Helper Text */
+    .stMarkdown p, .stText {
+        color: #94A3B8 !important; /* Slate-400 */
+    }
+
+    /* Divider */
+    hr { border-color: #33334D !important; }
+
 </style>
-<div class="scanlines"></div>
 """, unsafe_allow_html=True)
 
-st.title(">_ SUBSTACK_BREACH_PROTOCOL v2.0")
-st.markdown("INITIALIZING CONNECTION... READY TO EXTRACT DATA.")
+st.title("Substack Downloader")
+st.markdown("Download posts from your favorite Substack newsletter and compile them into a book.")
 
 # Mode selection
 mode = st.radio(
-    "SELECT_OPERATION_MODE",
-    ("INIT_NEW_DB", "UPDATE_EXISTING_DB"),
+    "Mode",
+    ("Create New", "Update Existing EPUB"),
     horizontal=True,
-    help="Define objective: Create new compilation or update existing archive."
+    help="Create a new book or update an existing EPUB with new posts"
 )
 
+# Use columns for layout
 col1, col2 = st.columns([3, 1])
 with col1:
-    url = st.text_input("TARGET_URL", placeholder="https://newsletter.example.com")
+    url = st.text_input("Enter Substack URL", placeholder="https://newsletter.pragmaticengineer.com")
 with col2:
-    if mode == "INIT_NEW_DB":
-        limit = st.number_input("FETCH_LIMIT (0=ALL)", min_value=0, value=0, step=10)
+    if mode == "Create New":
+        limit = st.number_input("Limit (0 for all)", min_value=0, value=0, step=10)
     else:
         limit = 0  # Always check all posts in update mode
 
 format_option = st.selectbox(
-    "PAYLOAD_FORMAT",
+    "Output Format",
     ("PDF", "EPUB", "JSON", "HTML", "TXT", "Markdown"),
-    index=1 if mode == "UPDATE_EXISTING_DB" else 0,
-    disabled=mode == "UPDATE_EXISTING_DB",
-    help="Update protocol only compatible with EPUB format." if mode == "UPDATE_EXISTING_DB" else None
+    index=1 if mode == "Update Existing EPUB" else 0,
+    disabled=mode == "Update Existing EPUB",
+    help="Update mode only works with EPUB format" if mode == "Update Existing EPUB" else None
 )
 
-use_cache = st.checkbox(
-    "ENABLE_LOCAL_CACHE",
-    value=False,
-    help="Store intercepted packets locally to accelerate future operations."
-)
+with st.expander("⚙️ Configuration"):
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        use_cache = st.checkbox("Enable Cache", value=False)
+    with c2:
+        use_concurrency = st.checkbox("Concurrent Fetching", value=True)
+    with c3:
+        pass # spacer
+    
+    c4, c5 = st.columns(2)
+    with c4:
+        max_concurrent = st.slider("Max Threads", 1, 10, 5)
+    with c5:
+        batch_size = st.number_input("Batch Size", min_value=10, value=50, step=10)
 
-use_concurrency = st.checkbox(
-    "ENABLE_MULTI_THREADING",
-    value=True,
-    help="Execute parallel extraction threads."
-)
-
-max_concurrent = st.slider(
-    "THREAD_COUNT",
-    min_value=1,
-    max_value=10,
-    value=5,
-    help="High concurrency may trigger target defense mechanisms (rate limits)."
-)
-
-batch_size = st.number_input(
-    "BATCH_SIZE",
-    min_value=10,
-    value=50,
-    step=10,
-    help="Partition size for memory management."
-)
-
-with st.expander("🔐 [SECURE_ACCESS] AUTHENTICATION_TOKENS"):
-    st.markdown("""
-    **RESTRICTED AREA**
-    Authorization required for premium content extraction.
-
-    ### [INSTRUCTION_SET] TOKEN_EXTRACTION:
-
-    **CHROME / EDGE:**
-    1. NAVIGATE to target domain.
-    2. INITIATE DevTools (`F12`).
-    3. ACCESS **Application** > **Cookies**.
-    4. EXTRACT `substack.sid`.
-
-    **FIREFOX:**
-    1. NAVIGATE to target domain.
-    2. INITIATE DevTools (`F12`).
-    3. ACCESS **Storage** > **Cookies**.
-    4. EXTRACT `substack.sid`.
-
-    **SAFARI:**
-    1. ACCESS **Develop** > **Show Web Inspector**.
-    2. LOCATE **Storage** > **Cookies**.
-    3. EXTRACT `substack.sid`.
-
-    ⚠️ **[WARNING]**: Token is volatile. Stored in RAM only.
-    """)
-
+with st.expander("🔐 Authentication (Paywalled Content)"):
+    st.info("Required only for premium newsletters. Your cookie is not stored.")
     cookie = st.text_input(
-        "AUTH_TOKEN (substack.sid)",
-        placeholder="INSERT ENCRYPTED STRING...",
-        type="password",
-        help="Format: JWT-like string."
+        "Substack Cookie (substack.sid)",
+        placeholder="eyJ...",
+        type="password"
     )
-
-    if st.button("VERIFY_ACCESS"):
+    if st.button("Verify Session"):
         if not cookie:
-            st.warning("⚠️ [ERROR] NULL_TOKEN_DETECTED.")
+            st.warning("Please enter a cookie first.")
         else:
-            with st.spinner("HANDSHAKING..."):
+            with st.spinner("Verifying..."):
                 try:
-                    verify_fetcher = SubstackFetcher(
-                        url="https://substack.com",
-                        cookie=cookie,
-                        enable_cache=False,
-                    )
+                    verify_fetcher = SubstackFetcher("https://substack.com", cookie=cookie, enable_cache=False)
                     if verify_fetcher.verify_auth():
-                        st.success("✅ [ACCESS_GRANTED] IDENTITY CONFIRMED.")
+                        st.success("Session Valid")
                     else:
-                        st.error("❌ [ACCESS_DENIED] INVALID TOKEN.")
+                        st.error("Session Invalid")
                 except Exception as e:
-                    logger.exception("Error checking auth status")
-                    st.error(f"[SYSTEM_FAILURE] {e}")
+                    st.error(f"Error: {e}")
 
-button_label = "EXECUTE_UPDATE" if mode == "UPDATE_EXISTING_DB" else "EXECUTE_DOWNLOAD"
+st.markdown("---")
+button_label = "Update EPUB" if mode == "Update Existing EPUB" else "Download & Compile"
 
+# Big action button
 if st.button(button_label):
     if not url:
-        st.error("[ERROR] TARGET_URL_MISSING.")
+        st.error("Please enter a valid URL.")
     else:
-        with st.status("[SYSTEM] INITIATING SEQUENCE...", expanded=True) as status:
+        with st.status("Processing...", expanded=True) as status:
             try:
                 progress_bar = st.progress(0)
                 status_text = st.empty()
 
                 def status_callback(message):
-                    st.write(f"> {message}")
+                    status_text.write(message)
 
                 def progress_callback(current, total, title):
                     if total:
-                        status_text.text(f"PROCESSING_NODE {current}/{total}: {title}")
+                        status_text.text(f"{title} ({current}/{total})")
                         progress_bar.progress(current / total)
 
                 result = run_download(
                     url=url,
                     cookie=cookie,
-                    mode="Update Existing EPUB" if mode == "UPDATE_EXISTING_DB" else "Create New",
+                    mode=mode,
                     limit=limit,
                     format_option=format_option,
                     use_cache=use_cache,
@@ -262,29 +208,27 @@ if st.button(button_label):
                 )
 
                 if result.status == "missing_epub":
-                    st.error(f"[FAILURE] {result.message}")
-                    status.update(label="OPERATION_ABORTED", state="error")
+                    st.error(result.message)
+                    status.update(label="Failed", state="error")
                     st.stop()
                 if result.status == "no_new_posts":
-                    st.info(f"[INFO] {result.message}")
-                    status.update(label="SYSTEM_SYNCED", state="complete")
+                    st.info(result.message)
+                    status.update(label="Up to date", state="complete")
                     st.stop()
                 if result.status == "no_posts":
-                    st.error(f"[FAILURE] {result.message}")
-                    status.update(label="OPERATION_ABORTED", state="error")
+                    st.error(result.message)
+                    status.update(label="Failed", state="error")
                     st.stop()
 
-                # Success message
-                if mode == "UPDATE_EXISTING_DB":
-                    status.update(label="UPDATE_COMPLETE", state="complete", expanded=False)
-                    st.success(f"[SUCCESS] INJECTED {len(result.cleaned_posts)} NEW PACKETS INTO {result.filename}!")
+                if mode == "Update Existing EPUB":
+                    status.update(label="Complete", state="complete", expanded=False)
+                    st.success(f"Added {len(result.cleaned_posts)} posts to {result.filename}!")
                 else:
-                    status.update(label="COMPILATION_COMPLETE", state="complete", expanded=False)
-                    st.success(f"[SUCCESS] ARTIFACT GENERATED: {result.filename}!")
+                    status.update(label="Complete", state="complete", expanded=False)
+                    st.success(f"Compiled {result.filename}!")
 
-                # 4. Download Button
                 with open(result.output_path, "rb") as f:
-                    download_label = "RETRIEVE_ARTIFACT"
+                    download_label = "Download Updated EPUB" if mode == "Update Existing EPUB" else f"Download {format_option}"
                     st.download_button(
                         label=download_label,
                         data=f,
@@ -294,5 +238,5 @@ if st.button(button_label):
                         
             except Exception as e:
                 logger.exception("Processing failed")
-                st.error(f"[CRITICAL_ERROR] {e}")
-                status.update(label="SYSTEM_CRASH", state="error")
+                st.error(f"An error occurred: {e}")
+                status.update(label="Error", state="error")
