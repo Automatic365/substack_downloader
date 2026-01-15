@@ -29,7 +29,7 @@ Transformed your Substack downloader from **4/10 stability** to **production-gra
 
 ### Modified Files
 12. **`fetcher.py`** - Stability fixes applied (original still works)
-13. **`compiler.py`** - Stability fixes applied
+13. **`compiler/`** - Stability fixes applied
 14. **`requirements.txt`** - Added tqdm, urllib3
 15. **`pytest.ini`** - Added integration test marker
 16. **`tests/test_fetcher.py`** - Added URL validation tests
@@ -115,7 +115,7 @@ Transformed your Substack downloader from **4/10 stability** to **production-gra
 ### Unit Tests
 - **test_fetcher.py** - 62 tests (✅ all passing)
 - **test_parser.py** - 19 tests (✅ all passing)
-- **test_compiler.py** - 36 tests (✅ all passing)
+- **test_compiler/** - 36 tests (✅ all passing)
 - **Total:** 85 unit tests
 
 ### Integration Tests (NEW)
@@ -128,7 +128,7 @@ Transformed your Substack downloader from **4/10 stability** to **production-gra
 
 ### Coverage Metrics
 - **fetcher.py:** 79%
-- **compiler.py:** 56%
+- **compiler/:** 56%
 - **parser.py:** 100%
 - **models.py:** 100% (new)
 - **utils.py:** 100% (new)

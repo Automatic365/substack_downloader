@@ -292,14 +292,14 @@ substack_downloader/
 ├── fetcher.py             # Original (still works)
 ├── fetcher.py    # Enhanced version with all features
 ├── parser.py              # Unchanged
-├── compiler.py            # Unchanged (for now)
+├── compiler/            # Unchanged (for now)
 ├── main.py                # CLI (can use either fetcher)
 ├── app.py                 # Streamlit app
 ├── requirements.txt       # Updated dependencies
 ├── tests/
 │   ├── test_fetcher.py
 │   ├── test_parser.py
-│   ├── test_compiler.py
+│   ├── test_compiler/
 │   └── test_integration.py  # NEW
 ├── STABILITY_FIXES.md
 ├── ENHANCEMENTS.md        # This file

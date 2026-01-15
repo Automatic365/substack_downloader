@@ -10,7 +10,7 @@ Fixed all 4 critical and 4 high-priority stability issues identified in the code
 
 **Files Changed:**
 - `fetcher.py` - Added `timeout=30` to all `requests.get()` calls (lines 30, 63, 150)
-- `compiler.py` - Added `timeout=30` to image downloads (line 50)
+- `compiler/` - Added `timeout=30` to image downloads (line 50)
 
 **Impact:** Prevents indefinite hangs, program can now recover from slow/unresponsive servers.
 
@@ -25,7 +25,7 @@ Fixed all 4 critical and 4 high-priority stability issues identified in the code
   - `fetch_archive_metadata()` - Separated Timeout, HTTPError, JSONDecodeError, RequestException
   - `fetch_post_content()` - Added Timeout, RequestException, MemoryError handling
 
-- `compiler.py`:
+- `compiler/`:
   - `download_image()` - Now catches Timeout, RequestException, IOError separately
 
 **Impact:** Better error messages, easier debugging, proper exception propagation.
@@ -49,7 +49,7 @@ Fixed all 4 critical and 4 high-priority stability issues identified in the code
 **Problem:** Failed image downloads left corrupted files on disk.
 
 **Files Changed:**
-- `compiler.py` lines 44-98 - `download_image()`:
+- `compiler/` lines 44-98 - `download_image()`:
   - Added `filepath = None` initialization
   - All exception handlers now check if file exists and remove it
   - Filters out keep-alive chunks
@@ -123,7 +123,7 @@ Fixed all 4 critical and 4 high-priority stability issues identified in the code
 - Updated 1 test for improved HTML parsing behavior
 - Coverage: 77% overall
   - `fetcher.py`: 79%
-  - `compiler.py`: 56%
+  - `compiler/`: 56%
   - `parser.py`: 100%
 
 ---
@@ -193,7 +193,7 @@ python3 -m pytest -v
 Run specific module tests:
 ```bash
 python3 -m pytest tests/test_fetcher.py -v
-python3 -m pytest tests/test_compiler.py -v
+python3 -m pytest tests/test_compiler/ -v
 ```
 
 Check coverage:

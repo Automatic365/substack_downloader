@@ -387,7 +387,7 @@ pytest -m integration
              ├──> Post (models.py)
              │    └─> Validation
              │
-             ├──> SubstackParser
+             ├──> parse_content()
              │    └─> HTML cleaning
              │
              └──> SubstackCompiler
@@ -407,7 +407,7 @@ substack_downloader/
 ├── fetcher.py             # Original (stable)
 ├── fetcher.py    # Enhanced version ⭐
 ├── parser.py              # HTML cleaning
-├── compiler.py            # Format compilation
+├── compiler/            # Format compilation
 ├── main.py                # CLI
 ├── app.py                 # Streamlit UI
 ├── example_usage.py       # Examples
@@ -417,7 +417,7 @@ substack_downloader/
 ├── tests/
 │   ├── test_fetcher.py
 │   ├── test_parser.py
-│   ├── test_compiler.py
+│   ├── test_compiler/
 │   └── test_integration.py
 ├── STABILITY_FIXES.md     # Stability improvements
 ├── ENHANCEMENTS.md        # New features

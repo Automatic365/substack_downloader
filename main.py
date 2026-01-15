@@ -1,7 +1,7 @@
 import argparse
 import time
 from fetcher import SubstackFetcher
-from parser import SubstackParser
+from parser import parse_content
 from compiler import SubstackCompiler
 from logger import setup_logger
 
@@ -37,14 +37,13 @@ def main():
         output_filename = f"{safe_title}.{args.format}"
 
     # 2. Fetch Content & Parse
-    parser_tool = SubstackParser()
     cleaned_posts = []
     
     logger.info("Downloading and processing %s posts...", len(metadata_list))
     for i, meta in enumerate(metadata_list):
         logger.info("[%s/%s] %s", i + 1, len(metadata_list), meta.title)
         content = fetcher.fetch_post_content(meta.link)
-        cleaned_content = parser_tool.parse_content(content)
+        cleaned_content = parse_content(content)
 
         meta.content = cleaned_content
         cleaned_posts.append(meta)

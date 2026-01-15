@@ -1,25 +1,21 @@
 import pytest
-from parser import SubstackParser
+from parser import parse_content
 
 
-class TestSubstackParser:
-    """Tests for SubstackParser class"""
+class TestParseContent:
+    """Tests for parse_content function"""
 
-    @pytest.fixture
-    def parser(self):
-        return SubstackParser()
-
-    def test_parse_empty_content(self, parser):
+    def test_parse_empty_content(self):
         """Test parsing empty content returns empty string"""
-        result = parser.parse_content("")
+        result = parse_content("")
         assert result == ""
 
-    def test_parse_none_content(self, parser):
+    def test_parse_none_content(self):
         """Test parsing None returns empty string"""
-        result = parser.parse_content(None)
+        result = parse_content(None)
         assert result == ""
 
-    def test_parse_removes_subscription_widget(self, parser):
+    def test_parse_removes_subscription_widget(self):
         """Test that subscription widget is removed"""
         html = '''
         <div>
@@ -27,13 +23,13 @@ class TestSubstackParser:
             <div class="subscription-widget-wrap">Subscribe now!</div>
         </div>
         '''
-        result = parser.parse_content(html)
+        result = parse_content(html)
 
         assert 'Real content' in result
         assert 'subscription-widget-wrap' not in result
         assert 'Subscribe now!' not in result
 
-    def test_parse_removes_share_dialog(self, parser):
+    def test_parse_removes_share_dialog(self):
         """Test that share dialog is removed"""
         html = '''
         <div>
@@ -41,13 +37,13 @@ class TestSubstackParser:
             <div class="share-dialog">Share this post</div>
         </div>
         '''
-        result = parser.parse_content(html)
+        result = parse_content(html)
 
         assert 'Article content' in result
         assert 'share-dialog' not in result
         assert 'Share this post' not in result
 
-    def test_parse_removes_share_button(self, parser):
+    def test_parse_removes_share_button(self):
         """Test that share button is removed"""
         html = '''
         <div>
@@ -55,12 +51,12 @@ class TestSubstackParser:
             <button class="share-button">Share</button>
         </div>
         '''
-        result = parser.parse_content(html)
+        result = parse_content(html)
 
         assert 'Content here' in result
         assert 'share-button' not in result
 
-    def test_parse_removes_post_footer(self, parser):
+    def test_parse_removes_post_footer(self):
         """Test that post footer is removed"""
         html = '''
         <div>
@@ -68,13 +64,13 @@ class TestSubstackParser:
             <div class="post-footer">Footer info</div>
         </div>
         '''
-        result = parser.parse_content(html)
+        result = parse_content(html)
 
         assert 'Main content' in result
         assert 'post-footer' not in result
         assert 'Footer info' not in result
 
-    def test_parse_removes_comments_section(self, parser):
+    def test_parse_removes_comments_section(self):
         """Test that comments section is removed"""
         html = '''
         <div>
@@ -82,13 +78,13 @@ class TestSubstackParser:
             <div class="comments-section">Comments here</div>
         </div>
         '''
-        result = parser.parse_content(html)
+        result = parse_content(html)
 
         assert 'Article text' in result
         assert 'comments-section' not in result
         assert 'Comments here' not in result
 
-    def test_parse_removes_subscribe_footer(self, parser):
+    def test_parse_removes_subscribe_footer(self):
         """Test that subscribe footer is removed"""
         html = '''
         <div>
@@ -96,12 +92,12 @@ class TestSubstackParser:
             <div class="subscribe-footer">Subscribe to continue</div>
         </div>
         '''
-        result = parser.parse_content(html)
+        result = parse_content(html)
 
         assert 'Newsletter content' in result
         assert 'subscribe-footer' not in result
 
-    def test_parse_removes_divs_with_subscribe_in_class(self, parser):
+    def test_parse_removes_divs_with_subscribe_in_class(self):
         """Test that divs with 'subscribe' in class name are removed"""
         html = '''
         <div>
@@ -110,13 +106,13 @@ class TestSubstackParser:
             <div class="newsletter-subscribe-form">Form here</div>
         </div>
         '''
-        result = parser.parse_content(html)
+        result = parse_content(html)
 
         assert 'Content' in result
         assert 'subscribe-button-container' not in result
         assert 'newsletter-subscribe-form' not in result
 
-    def test_parse_removes_divs_with_share_in_class(self, parser):
+    def test_parse_removes_divs_with_share_in_class(self):
         """Test that divs with 'share' in class name are removed"""
         html = '''
         <div>
@@ -125,13 +121,13 @@ class TestSubstackParser:
             <div class="social-share">Social</div>
         </div>
         '''
-        result = parser.parse_content(html)
+        result = parse_content(html)
 
         assert 'Article' in result
         assert 'share-buttons-wrapper' not in result
         assert 'social-share' not in result
 
-    def test_parse_removes_all_buttons(self, parser):
+    def test_parse_removes_all_buttons(self):
         """Test that all button elements are removed"""
         html = '''
         <div>
@@ -141,13 +137,13 @@ class TestSubstackParser:
             <button id="share-btn">Share</button>
         </div>
         '''
-        result = parser.parse_content(html)
+        result = parse_content(html)
 
         assert 'Text content' in result
         assert '<button' not in result
         assert 'Click me' not in result
 
-    def test_parse_removes_subscribe_links(self, parser):
+    def test_parse_removes_subscribe_links(self):
         """Test that subscribe links are removed"""
         html = '''
         <div>
@@ -157,26 +153,26 @@ class TestSubstackParser:
             </div>
         </div>
         '''
-        result = parser.parse_content(html)
+        result = parse_content(html)
 
         assert 'Main text' in result
         # The link with "subscribe" should be removed
         assert 'Subscribe to newsletter' not in result
 
-    def test_parse_preserves_regular_links(self, parser):
+    def test_parse_preserves_regular_links(self):
         """Test that regular links without 'subscribe' are preserved"""
         html = '''
         <div>
             <p>Check out <a href="/other">this link</a></p>
         </div>
         '''
-        result = parser.parse_content(html)
+        result = parse_content(html)
 
         assert 'Check out' in result
         assert 'this link' in result
         assert '<a href="/other">' in result
 
-    def test_parse_removes_nested_unwanted_elements(self, parser):
+    def test_parse_removes_nested_unwanted_elements(self):
         """Test removal of nested unwanted elements"""
         html = '''
         <div>
@@ -188,14 +184,14 @@ class TestSubstackParser:
             </div>
         </div>
         '''
-        result = parser.parse_content(html)
+        result = parse_content(html)
 
         assert 'Content' in result
         assert 'post-footer' not in result
         assert 'share-dialog' not in result
         assert '<button' not in result
 
-    def test_parse_preserves_essential_content(self, parser):
+    def test_parse_preserves_essential_content(self):
         """Test that essential content elements are preserved"""
         html = '''
         <div>
@@ -209,7 +205,7 @@ class TestSubstackParser:
             </ul>
         </div>
         '''
-        result = parser.parse_content(html)
+        result = parse_content(html)
 
         assert 'Article Title' in result
         assert 'Paragraph one' in result
@@ -221,7 +217,7 @@ class TestSubstackParser:
         assert '<ul>' in result
         assert 'List item 1' in result
 
-    def test_parse_multiple_subscribe_elements(self, parser):
+    def test_parse_multiple_subscribe_elements(self):
         """Test removing multiple subscribe elements"""
         html = '''
         <div>
@@ -232,7 +228,7 @@ class TestSubstackParser:
             <p>More content</p>
         </div>
         '''
-        result = parser.parse_content(html)
+        result = parse_content(html)
 
         assert 'Article' in result
         assert 'More content' in result
@@ -240,7 +236,7 @@ class TestSubstackParser:
         assert 'subscribe-footer' not in result
         assert 'newsletter-subscribe' not in result
 
-    def test_parse_case_insensitive_subscribe_link(self, parser):
+    def test_parse_case_insensitive_subscribe_link(self):
         """Test that subscribe link removal is case-insensitive"""
         html = '''
         <div>
@@ -250,14 +246,14 @@ class TestSubstackParser:
             <div><a href="/sub">subscribe now</a></div>
         </div>
         '''
-        result = parser.parse_content(html)
+        result = parse_content(html)
 
         assert 'Text' in result
         # All variations should be removed
         assert 'SUBSCRIBE' not in result
         assert 'Subscribe Now' not in result
 
-    def test_parse_complex_real_world_html(self, parser):
+    def test_parse_complex_real_world_html(self):
         """Test parsing complex real-world-like HTML"""
         html = '''
         <div class="available-content">
@@ -284,7 +280,7 @@ class TestSubstackParser:
             </div>
         </div>
         '''
-        result = parser.parse_content(html)
+        result = parse_content(html)
 
         # Should preserve
         assert 'The Future of AI' in result
@@ -302,14 +298,14 @@ class TestSubstackParser:
         assert 'Share on Twitter' not in result
         assert 'comments-section' not in result
 
-    def test_parse_empty_div_structure(self, parser):
+    def test_parse_empty_div_structure(self):
         """Test parsing when all content would be removed"""
         html = '''
         <div class="subscription-widget-wrap">
             <button>Subscribe</button>
         </div>
         '''
-        result = parser.parse_content(html)
+        result = parse_content(html)
 
         # Should be mostly empty, just the outer tags
         assert 'subscription-widget-wrap' not in result
