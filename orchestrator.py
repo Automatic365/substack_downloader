@@ -47,6 +47,9 @@ def run_download(
     limit: int,
     format_option: str,
     use_cache: bool = False,
+    use_concurrency: bool = True,
+    max_concurrent: Optional[int] = None,
+    batch_size: Optional[int] = None,
     status_callback: StatusCallback = None,
     progress_callback: ProgressCallback = None,
 ) -> OrchestratorResult:
@@ -101,12 +104,42 @@ def run_download(
     _notify_status(status_callback, "Downloading and cleaning content (this may take a while)...")
     cleaned_posts = []
 
-    total = len(metadata_list)
-    for i, meta in enumerate(metadata_list):
-        _notify_progress(progress_callback, i + 1, total, meta.title)
-        content = fetcher.fetch_post_content(meta.link)
-        meta.content = parse_content(content)
-        cleaned_posts.append(meta)
+    total_posts = len(metadata_list)
+    progress_total = total_posts * 2 if total_posts else 0
+    progress_state = {"count": 0}
+
+    def bump_progress(stage_title: str):
+        progress_state["count"] += 1
+        _notify_progress(progress_callback, progress_state["count"], progress_total, stage_title)
+
+    def fetch_batch(posts_batch):
+        if use_concurrency and len(posts_batch) > 1:
+            def fetch_progress(_current, _total, post):
+                bump_progress(f"Fetching: {post.title}")
+
+            return fetcher.fetch_all_content_concurrent(
+                posts_batch,
+                max_workers=max_concurrent,
+                progress_callback=fetch_progress,
+            )
+
+        fetched = []
+        for post in posts_batch:
+            content = fetcher.fetch_post_content(post.link)
+            post.content = content
+            bump_progress(f"Fetching: {post.title}")
+            fetched.append(post)
+        return fetched
+
+    batch_size = batch_size or total_posts
+    for start in range(0, total_posts, batch_size):
+        batch = metadata_list[start:start + batch_size]
+        fetched_batch = fetch_batch(batch)
+
+        for post in fetched_batch:
+            post.content = parse_content(post.content)
+            bump_progress(f"Parsing: {post.title}")
+            cleaned_posts.append(post)
 
     compiler = SubstackCompiler(base_url=url)
     format_map = {

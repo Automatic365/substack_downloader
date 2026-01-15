@@ -41,6 +41,28 @@ use_cache = st.checkbox(
     help="Cache fetched content to speed up repeat downloads"
 )
 
+use_concurrency = st.checkbox(
+    "Use concurrent fetching",
+    value=True,
+    help="Fetch posts in parallel for faster downloads"
+)
+
+max_concurrent = st.slider(
+    "Max concurrent requests",
+    min_value=1,
+    max_value=10,
+    value=5,
+    help="Higher values can be faster but may trigger rate limits"
+)
+
+batch_size = st.number_input(
+    "Batch size",
+    min_value=10,
+    value=50,
+    step=10,
+    help="Process posts in batches to reduce peak memory usage"
+)
+
 with st.expander("🔐 Advanced: Authentication for Paywalled Content"):
     st.markdown("""
     **Need to download paywalled content?** You'll need your Substack authentication cookie.
@@ -124,6 +146,9 @@ if st.button(button_label):
                     limit=limit,
                     format_option=format_option,
                     use_cache=use_cache,
+                    use_concurrency=use_concurrency,
+                    max_concurrent=max_concurrent,
+                    batch_size=batch_size,
                     status_callback=status_callback,
                     progress_callback=progress_callback,
                 )
